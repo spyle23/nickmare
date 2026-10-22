@@ -1,0 +1,25 @@
+# Rust / Cargo
+/target/
+**/*.rs.bk
+Cargo.lock.orig
+
+# Engagement data — jamais commité (résultats, bases SQLite, journaux d'audit, scopes clients)
+*.sqlite
+*.sqlite3
+*.db
+*.jsonl
+/engagements/
+/scopes/*.toml
+!testdata/**/*.toml
+
+# Secrets
+.env
+*.key
+*.pem
+
+# OS / éditeurs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
