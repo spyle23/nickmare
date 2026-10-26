@@ -2,7 +2,19 @@
 
 Des commandes Claude Code encadrent le cycle de vie d'un ticket — de sa création à son traitement
 unitaire, et jusqu'à l'exécution d'un **jalon entier** par des agents coordonnés — et un pipeline
-GitHub Actions assure le **merge automatique**.
+GitHub Actions assure le **merge automatique**. `/demande` est le raccourci « idée → incrément » qui
+enchaîne création et traitement d'un ticket.
+
+## `/demande <description>`
+
+Pont « de l'idée à l'incrément » : transforme une demande formulée librement en session chat en
+ticket, puis enchaîne son traitement. Concrètement, elle applique la logique de `/create-ticket`
+puis celle de `/ticket`, avec **un seul point de contrôle** — la validation du brouillon de ticket
+avant toute écriture de code. Après validation, tout s'enchaîne jusqu'à la PR auto-mergée (sauf
+ambiguïté de périmètre ou risque de sécurité, où la commande s'arrête et demande).
+
+Utilise `/create-ticket` seul si tu veux seulement créer l'issue, et `/ticket <numéro>` seul pour
+traiter une issue existante.
 
 ## `/create-ticket <description>`
 
