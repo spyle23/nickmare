@@ -78,7 +78,14 @@ Déclenché par le label **`auto-merge`** sur la PR, via [`.github/workflows/ci.
 - la CI s'exécute (format, clippy, tests multi-OS, build) — les étapes Rust sont **ignorées
   proprement** tant qu'il n'y a pas de `Cargo.toml`, pour ne pas bloquer les premiers tickets ;
 - dès que la CI est verte **et** que le label `auto-merge` est présent, le job `auto-merge`
-  **squash-merge** la PR et **supprime la branche**.
+  **squash-merge** la PR et **supprime la branche** ;
+- une fois la PR effectivement mergée, le même job **ferme automatiquement les issues liées**
+  (`Closes #N`, `Fixes #N`, `Resolves #N`… ; plusieurs issues possibles : `Closes #1, #2` ou un
+  mot-clé par ligne) avec `--reason completed` et un commentaire renvoyant à la PR. Plus besoin de
+  les fermer à la main : un merge par le `GITHUB_TOKEN` ne propage pas le `Closes #N` de lui-même,
+  d'où cette étape ([`close-linked-issues.sh`](../.github/scripts/close-linked-issues.sh)).
+  Elle est **best-effort** : une PR sans issue liée se merge normalement, et un échec de fermeture
+  ne fait jamais échouer ni annuler le merge (simple avertissement dans le journal du job).
 
 > **Pourquoi un merge piloté par Actions plutôt que l'auto-merge natif de GitHub ?**
 > L'auto-merge natif (`gh pr merge --auto`) exige `allow_auto_merge` + une protection de branche
