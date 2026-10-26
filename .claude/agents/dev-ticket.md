@@ -83,6 +83,23 @@ Tu ne traites en autonomie que les tickets non critiques.
    de la PR, et état (poussé / en attente de CI). Ne surveille pas le merge toi-même : c'est le rôle
    de l'orchestrateur et de l'agent QA. Ne force **jamais** de merge manuel.
 
+## Journal de run (observabilité)
+
+Si un run est actif (dossier sous `.nickmare/runs/`), **émets les transitions de phase** pour que
+le dashboard (`scripts/run-dashboard.sh`) te suive en direct. C'est best-effort : en l'absence de
+run, l'appel échoue silencieusement et n'altère rien.
+
+```
+source scripts/lib/run-journal.sh          # une fois, en début de traitement
+nm_log_phase <N> dev   --agent dev-ticket   # au début de l'implémentation (étape 3)
+nm_log_phase <N> tests --agent dev-ticket   # au lancement des vérifications (étape 4)
+nm_log_phase <N> fix   --agent dev-ticket --detail "<ce que tu corriges>"   # si tu corriges un échec
+nm_log_phase <N> dev   --agent dev-ticket --pr <PR>   # après ouverture de la PR (rattache la PR)
+```
+
+Le journal est **append-only** et ne contient aucun secret. Par défaut `nm_log_phase` vise le run
+le plus récent ; l'orchestrateur peut te transmettre un `NM_RUN_ID` précis à exporter d'abord.
+
 ## Règles non négociables (cf. `docs/ARCHITECTURE.md` §3 & §11, `docs/TESTING.md`)
 
 - Pas de ticket « fini » sans ses tests (dont **tests négatifs de sécurité** §10.4 si un garde-fou
