@@ -10,6 +10,8 @@ name: CI
 #   la PR porte le label `auto-merge`. C'est le mécanisme de merge automatique :
 #   l'auto-merge natif de GitHub n'est pas disponible sur ce dépôt (privé, sans
 #   protection de branche), donc la fusion est faite ici de façon contrôlée.
+#   Après le merge, il ferme les issues liées (`Closes #N`) en best-effort : un
+#   merge par le GITHUB_TOKEN ne les ferme pas tout seul (cf. issue #37).
 
 on:
   push:
@@ -73,21 +75,37 @@ jobs:
       - name: Build
         run: cargo build --all-features --workspace
 
+  # Tests des scripts d'outillage CI (sans réseau : `gh` est bouchonné).
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests de close-linked-issues.sh
+        run: bash .github/scripts/tests/close-linked-issues.test.sh
+
   # Merge automatique : ne s'exécute que sur une PR portant le label `auto-merge`,
   # et seulement si la CI est verte (ou légitimement ignorée faute de code Rust).
   auto-merge:
-    needs: [detect, fmt_clippy, test]
+    needs: [detect, fmt_clippy, test, scripts]
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
       (needs.fmt_clippy.result == 'success' || needs.fmt_clippy.result == 'skipped') &&
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      needs.scripts.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
+      # Scripts récupérés dans un sous-dossier : le répertoire de travail reste hors
+      # dépôt git, pour que `gh pr merge --delete-branch` ne touche à aucun clone local.
+      - uses: actions/checkout@v4
+        with:
+          path: ci-src
+          sparse-checkout: .github/scripts
       - name: Squash-merge de la PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,3 +114,13 @@ jobs:
         run: |
           echo "CI verte + label auto-merge présent → fusion de la PR #$PR"
           gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
+
+      # Best-effort et isolé : ne tourne qu'après un merge réussi (étape précédente
+      # verte), et ne peut ni faire échouer le job ni annuler le merge.
+      - name: Fermeture des issues liées
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: bash ci-src/.github/scripts/close-linked-issues.sh
