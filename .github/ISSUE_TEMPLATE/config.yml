@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Créer un ticket assisté
+    url: https://github.com/spyle23/nickmare/blob/main/docs/WORKFLOW_TICKETS.md
+    about: "Préfère la commande Claude Code /create-ticket : elle classe le ticket dans la taxonomie du dépôt (phase, epic, niveau, type, priorité) et rédige les critères d'acceptation."

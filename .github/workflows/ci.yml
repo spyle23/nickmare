@@ -1,0 +1,98 @@
+name: CI
+
+# Pipeline de qualité + merge automatique.
+#
+# - Les jobs `fmt_clippy`, `test` et `build` ne tournent que si un projet Cargo
+#   existe (présence de Cargo.toml). Tant que le dépôt est en phase de conception,
+#   ils sont ignorés proprement — ce qui permet aux premiers tickets d'infra/docs
+#   de passer sans code Rust.
+# - Le job `auto-merge` squash-merge la PR dès que la CI est verte, UNIQUEMENT si
+#   la PR porte le label `auto-merge`. C'est le mécanisme de merge automatique :
+#   l'auto-merge natif de GitHub n'est pas disponible sur ce dépôt (privé, sans
+#   protection de branche), donc la fusion est faite ici de façon contrôlée.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has_cargo: ${{ steps.probe.outputs.has_cargo }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: probe
+        shell: bash
+        run: |
+          if [ -f Cargo.toml ]; then
+            echo "has_cargo=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_cargo=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Pas de Cargo.toml — étapes Rust ignorées (dépôt en conception)."
+          fi
+
+  fmt_clippy:
+    needs: detect
+    if: needs.detect.outputs.has_cargo == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy (warnings = erreurs)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    needs: detect
+    if: needs.detect.outputs.has_cargo == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Tests (dont tests négatifs de sécurité, cf. docs/TESTING.md §10.4)
+        run: cargo test --all-features --workspace
+      - name: Build
+        run: cargo build --all-features --workspace
+
+  # Merge automatique : ne s'exécute que sur une PR portant le label `auto-merge`,
+  # et seulement si la CI est verte (ou légitimement ignorée faute de code Rust).
+  auto-merge:
+    needs: [detect, fmt_clippy, test]
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
+      (needs.fmt_clippy.result == 'success' || needs.fmt_clippy.result == 'skipped') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Squash-merge de la PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "CI verte + label auto-merge présent → fusion de la PR #$PR"
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
