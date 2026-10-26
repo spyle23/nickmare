@@ -42,6 +42,9 @@ Milestones (= phases d'implémentation) :
    - **Titre** : `Phase N · <Epic> — <résumé d'action>` (ou `Transverse · …`), concis et orienté résultat.
    - **Corps** (markdown) avec ces sections :
      - `## Contexte` — pourquoi, et renvoi aux sections pertinentes de `docs/ARCHITECTURE.md`.
+     - `## Dépendances` — liste des issues bloquantes (`#N`, une par ligne, idéalement `Bloqué par #N`)
+       ou le mot `Aucune`. **Toujours présente** : c'est elle que l'orchestrateur `/run-jalon` lit pour
+       construire le graphe de dépendances et déduire l'ordre et les lots parallélisables.
      - `## Tâches` — liste à cocher, granularité raisonnable.
      - `## Critères d'acceptation` — vérifiables, alignés sur la **définition de réussite** de
        `docs/TESTING.md`.

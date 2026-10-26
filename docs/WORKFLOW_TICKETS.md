@@ -1,7 +1,8 @@
 # Workflow de tickets (Claude Code + GitHub)
 
-Deux commandes Claude Code encadrent le cycle de vie d'un ticket, et un pipeline GitHub Actions
-assure le **merge automatique**.
+Des commandes Claude Code encadrent le cycle de vie d'un ticket — de sa création à son traitement
+unitaire, et jusqu'à l'exécution d'un **jalon entier** par des agents coordonnés — et un pipeline
+GitHub Actions assure le **merge automatique**.
 
 ## `/create-ticket <description>`
 
@@ -9,8 +10,9 @@ Rédige et crée une issue GitHub conforme à la taxonomie du dépôt :
 
 - choisit le **milestone** (= phase d'implémentation) et les labels `epic:*`, `Nx:*`, `type:*`,
   `prio:*` parmi ceux qui existent déjà — sans en inventer ;
-- structure le corps : Contexte → Tâches → **Critères d'acceptation** (alignés sur
-  [`TESTING.md`](TESTING.md)) → **Garde-fous de sécurité** ([`ARCHITECTURE.md`](ARCHITECTURE.md) §3/§11) ;
+- structure le corps : Contexte → **Dépendances** (issues `#N` bloquantes, lues par `/run-jalon`)
+  → Tâches → **Critères d'acceptation** (alignés sur [`TESTING.md`](TESTING.md)) →
+  **Garde-fous de sécurité** ([`ARCHITECTURE.md`](ARCHITECTURE.md) §3/§11) ;
 - affiche le brouillon pour validation (passe `--yes` pour créer directement).
 
 ## `/ticket <numéro>`
@@ -23,6 +25,39 @@ Traite l'issue de bout en bout :
 4. commits + push ;
 5. **PR reliée** au ticket (`Closes #N`) portant le label **`auto-merge`** ;
 6. attente de la CI et compte rendu du merge.
+
+## `/run-jalon <milestone> [--max-parallel N] [--dry-run]`
+
+Exécute un **jalon entier** de façon semi-autonome en coordonnant des agents. C'est un cran
+au-dessus du traitement unitaire : là où `/ticket` traite une issue, `/run-jalon` en traite tout un
+*milestone*.
+
+```
+Orchestrateur de run  (/run-jalon)
+  │  lit les issues du milestone + leur section ## Dépendances
+  │  → graphe de dépendances → ordre (prio:P0 d'abord) → lots parallélisables
+  │
+  ├─ agent dev-ticket  ──┐  (plusieurs en parallèle, worktrees isolés)
+  ├─ agent dev-ticket  ──┤  → chacun : branche, implémentation, tests, PR + auto-merge
+  │                       │
+  └─ agent qa-ticket   ──┘  vérifie chaque PR contre les critères d'acceptation
+                            → PASS : laisse le merge auto ; FAIL : retire auto-merge, renvoie au dev
+```
+
+- **Orchestrateur** ([`.claude/commands/run-jalon.md`](../.claude/commands/run-jalon.md)) : ne
+  considère « prêt » qu'un ticket dont toutes les dépendances sont fermées ; lance les agents dev par
+  lots (≤ `--max-parallel`, défaut 2), puis la QA ; **sérialise les merges** et re-synchronise `main`
+  entre les lots ; rend un **compte rendu de run** (ticket → PR → CI → verdict QA → statut).
+- **Agent développeur** ([`.claude/agents/dev-ticket.md`](../.claude/agents/dev-ticket.md)) :
+  logique de `/ticket` en worktree isolé (parallélisable).
+- **Agent QA** ([`.claude/agents/qa-ticket.md`](../.claude/agents/qa-ticket.md)) : verdict
+  `PASS`/`FAIL` motivé ; ne code jamais, ne merge jamais.
+
+**Points d'arrêt humain (non négociables)** : aucun ticket `type:security` ni `prio:P0` n'est traité
+en autonomie, et le run refuse d'enjamber le **jalon de revue #17** (garde-fous avant N2–N4). Dans
+ces cas l'orchestrateur s'arrête et **demande une validation humaine**. Le merge reste toujours
+piloté par la CI verte — jamais de merge manuel forcé. Utilise `--dry-run` pour afficher le plan
+sans aucun effet de bord.
 
 ## Merge automatique
 
