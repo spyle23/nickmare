@@ -19,16 +19,26 @@ coordonnant deux sous-agents : `dev-ticket` (développement) et `qa-ticket` (val
 - `--max-parallel N` : nombre max d'agents dev simultanés (défaut **2**).
 - `--dry-run` : affiche le **plan** et s'arrête, sans lancer aucun agent ni créer de branche.
 
-## Contexte chargé dynamiquement
+## Contexte
 
-Issues ouvertes du jalon :
-!`gh issue list --milestone "$1" --state open --json number,title,labels,body -q '.[] | "#\(.number) [\([.labels[].name]|join(","))] \(.title)"' 2>/dev/null || echo "Préciser le titre exact du milestone."`
+Le titre du milestone et les drapeaux éventuels (`--max-parallel N`, `--dry-run`) sont dans
+`$ARGUMENTS`. Le titre peut contenir des espaces (« Phase 0 — Fondations ») : il n'est donc **pas**
+pré-chargé par un bloc `!` (où `$1` resterait vide côté bash). Tu charges les issues toi-même à
+l'étape 1, à partir de `$ARGUMENTS` privé des drapeaux.
 
 ## Marche à suivre
 
 ### 1. Construire le plan
 
-1. Récupère les issues ouvertes du milestone (numéro, titre, labels, corps).
+1. Isole le **titre exact** du milestone depuis `$ARGUMENTS` (retire les drapeaux
+   `--max-parallel N` / `--dry-run`), puis récupère ses issues ouvertes :
+
+   ```
+   gh issue list --milestone "<titre exact>" --state open \
+     --json number,title,labels,body \
+     -q '.[] | "#\(.number) [\([.labels[].name]|join(","))] \(.title)"'
+   ```
+
 2. Pour chaque issue, lis sa section **`## Dépendances`** (liste de `#N`, ou « Aucune »). Construis
    le **graphe de dépendances**. Ne considère « prêt » qu'un ticket dont **toutes** les dépendances
    sont déjà **fermées/mergées**.

@@ -39,8 +39,8 @@ demande ci-dessus :
 ### Étape 2 — Traiter le ticket (logique de `/ticket`)
 
 Avec le **numéro d'issue** obtenu à l'étape 1, applique intégralement la marche à suivre de
-`@.claude/commands/ticket.md` (le `$1` de cette commande = ce numéro ; les notes additionnelles
-éventuelles de la demande = son `$2`) :
+`@.claude/commands/ticket.md`, en prenant ce numéro comme ticket à traiter et les éventuelles
+contraintes de la demande comme notes additionnelles :
 
 1. relis le ticket et les sections de `docs/ARCHITECTURE.md` qu'il référence ; si le périmètre est
    ambigu ou dangereux, **arrête-toi et demande** avant de coder ;

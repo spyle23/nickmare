@@ -12,7 +12,10 @@ Notes additionnelles éventuelles : $2
 
 ## Le ticket
 
-!`gh issue view $1 --json number,title,labels,milestone,body -q '"#\(.number) — \(.title)\n\nLabels: \([.labels[].name]|join(", "))\nMilestone: \(.milestone.title // "—")\n\n\(.body)"'`
+> Le numéro est extrait de `$ARGUMENTS` (1er mot) et non de `$1` : dans un bloc `!`, `$ARGUMENTS`
+> est substitué par Claude Code, alors que `$1` resterait un positionnel bash vide.
+
+!`gh issue view "$(echo "$ARGUMENTS" | cut -d' ' -f1 | tr -d '#')" --json number,title,labels,milestone,body -q '"#\(.number) — \(.title)\n\nLabels: \([.labels[].name]|join(", "))\nMilestone: \(.milestone.title // "—")\n\n\(.body)"'`
 
 ## Règles non négociables (cf. `@docs/ARCHITECTURE.md` §3 & §11)
 
