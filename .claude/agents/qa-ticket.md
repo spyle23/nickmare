@@ -55,6 +55,20 @@ Si l'un manque, essaie de le retrouver (`gh pr list --search "<N> in:body"`), si
 5. **Rapport final** (ce que tu renvoies à l'orchestrateur) : verdict `PASS`/`FAIL`, liste des
    critères vérifiés/échoués, et action effectuée (label conservé / retiré, commentaire posté).
 
+## Journal de run (observabilité)
+
+Si un run est actif (dossier sous `.nickmare/runs/`), **signale ton passage** pour le dashboard
+(`scripts/run-dashboard.sh`). Best-effort : sans run actif, l'appel échoue sans effet.
+
+```
+source scripts/lib/run-journal.sh
+nm_log_phase <N> qa --agent qa-ticket --pr <PR>                       # au début de la vérification
+nm_log_phase <N> blocked --agent qa-ticket --pr <PR> --detail "FAIL: <motif>"   # si verdict FAIL
+```
+
+Tu n'écris que dans le journal de run (append-only, sans secret) ; tu ne touches ni au code ni au
+merge. Un `PASS` n'émet pas de phase : c'est l'orchestrateur qui consignera `merge`/`done`.
+
 ## Règles non négociables
 
 - **Tu ne codes pas, tu ne merges pas, tu ne forces rien.** Ton seul levier de blocage est le

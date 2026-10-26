@@ -82,6 +82,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Tests de close-linked-issues.sh
         run: bash .github/scripts/tests/close-linked-issues.test.sh
+      - name: Tests du journal de run (run-journal.sh)
+        run: bash .github/scripts/tests/run-journal.test.sh
+      - name: Tests du dashboard de run (run-dashboard.sh)
+        run: bash .github/scripts/tests/run-dashboard.test.sh
+      - name: Tests du lanceur de run (run-jalon.sh)
+        run: bash .github/scripts/tests/run-jalon.test.sh
 
   # Merge automatique : ne s'exécute que sur une PR portant le label `auto-merge`,
   # et seulement si la CI est verte (ou légitimement ignorée faute de code Rust).

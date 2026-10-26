@@ -17,6 +17,9 @@ Cargo.lock.orig
 *.key
 *.pem
 
+# Runs d'orchestration (journal NDJSON + méta) — observabilité locale, jamais commitée
+/.nickmare/
+
 # OS / éditeurs
 .DS_Store
 Thumbs.db

@@ -71,6 +71,59 @@ ces cas l'orchestrateur s'arrête et **demande une validation humaine**. Le merg
 piloté par la CI verte — jamais de merge manuel forcé. Utilise `--dry-run` pour afficher le plan
 sans aucun effet de bord.
 
+## Lanceur de run & dashboard live (observabilité)
+
+Pour lancer un jalon depuis un terminal et **suivre en direct** quel ticket est traité, à quelle
+phase et depuis combien de temps :
+
+```
+scripts/run-jalon.sh "Phase 0 — Fondations" [--max-parallel N] [--dry-run] [--no-dashboard]
+```
+
+Le lanceur initialise un **run observable**, lance l'orchestrateur `/run-jalon` (via `claude -p`)
+et ouvre le dashboard sur ce run. `--dry-run` affiche le plan sans aucun effet de bord
+d'orchestration (et n'ouvre pas le dashboard) ; `--no-dashboard` lance le run sans l'interface.
+Le lanceur **ne merge rien** : la fusion reste pilotée par le label `auto-merge` + CI verte.
+
+Le dashboard terminal (rafraîchi, couleurs, badges de phase, barre de progression, minuteurs) se
+relance seul sur le run le plus récent :
+
+```
+scripts/run-dashboard.sh [<run_id|chemin journal>] [--once] [--interval N]
+```
+
+### Contrat de journal de run
+
+Un run vit sous `.nickmare/runs/<run_id>/` (dossier **gitignoré**, local, jamais commité) :
+
+- `meta.json` — `{ run_id, milestone, started_at, max_parallel }` ;
+- `journal.ndjson` — **une ligne JSON par événement de phase, append-only** (jamais réécrit, dans
+  l'esprit du journal d'audit produit, [`ARCHITECTURE.md`](ARCHITECTURE.md) §11) ;
+- `titles.tsv` *(optionnel)* — `numéro<TAB>titre`, récupéré best-effort pour l'affichage.
+
+Schéma d'un événement :
+
+```json
+{ "ts": "<ISO8601 UTC>", "run_id": "…", "ticket": 12,
+  "phase": "queued|dev|tests|fix|qa|merge|done|blocked",
+  "agent": "orchestrateur|dev-ticket|qa-ticket", "pr": 34, "detail": "…" }
+```
+
+Les événements sont émis via la bibliothèque sourçable
+[`scripts/lib/run-journal.sh`](../scripts/lib/run-journal.sh) :
+
+```
+source scripts/lib/run-journal.sh
+id=$(nm_run_init "Phase 0 — Fondations" 2)          # crée le run, renvoie son id
+nm_log_phase 12 dev --agent dev-ticket --detail "…" # ajoute un événement (run le plus récent)
+```
+
+La **phase courante** d'un ticket est le dernier événement le concernant ; sa **durée** est
+`maintenant − ts de cet événement`. Le dashboard est **lecture seule** et **fail-safe** : une ligne
+NDJSON corrompue est ignorée, un run absent donne un message propre sans planter. L'orchestrateur
+(`/run-jalon`) et les agents (`dev-ticket`, `qa-ticket`) émettent ces transitions au fil du run ;
+voir leurs fichiers respectifs sous `.claude/`.
+
 ## Merge automatique
 
 Déclenché par le label **`auto-merge`** sur la PR, via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) :

@@ -96,6 +96,26 @@ Termine par un **tableau** (c'est le journal d'audit du run) :
 
 Puis liste explicitement les tickets **non traités** et la raison (bloqué / validation humaine requise).
 
+## Journal de run (observabilité)
+
+Quand tu es lancé via `scripts/run-jalon.sh`, un run est déjà initialisé (`NM_RUN_ID` exporté,
+dossier sous `.nickmare/runs/`). Tu peux aussi l'initialiser toi-même. **Consigne les transitions
+que les agents ne couvrent pas** (mise en file, blocage, merge, fin), pour que le dashboard
+(`scripts/run-dashboard.sh`) reflète le run en direct :
+
+```
+source scripts/lib/run-journal.sh
+nm_log_phase <N> queued  --agent orchestrateur --detail "<titre court>"   # ticket prêt, en attente d'un agent
+nm_log_phase <N> blocked --agent orchestrateur --detail "<dépendance #M non résolue>"   # bloqué
+nm_log_phase <N> merge   --agent orchestrateur --pr <PR>   # CI verte, fusion en cours
+nm_log_phase <N> done    --agent orchestrateur --pr <PR>   # PR mergée, issue fermée
+```
+
+Les agents dev/QA émettent `dev`/`tests`/`fix`/`qa` eux-mêmes. Le journal est **append-only** et ne
+contient aucun secret ; il ne remplace pas le journal d'audit produit (c'est l'observabilité du
+**workflow de dev**). Émission best-effort : une erreur de journalisation ne doit jamais
+interrompre le run.
+
 ## Règles non négociables (cf. `docs/ARCHITECTURE.md` §3 & §11, `docs/TESTING.md`)
 
 - **Human-in-the-loop pour le critique** : arrêt + validation humaine sur `type:security`/`prio:P0`
