@@ -5,7 +5,10 @@
 
 /// Bannière de version, dérivée des métadonnées du paquet.
 fn banniere() -> String {
-    format!("nickmare {} — placeholder Phase 0", env!("CARGO_PKG_VERSION"))
+    format!(
+        "nickmare {} — placeholder Phase 0",
+        env!("CARGO_PKG_VERSION")
+    )
 }
 
 fn main() {
