@@ -1,0 +1,34 @@
+# Configuration cargo-deny (issue #1) — vérifications d'approvisionnement
+# (avis de sécurité, licences, duplications, sources).
+#
+# Non bloquant au tout début de la Phase 0 : l'intégration stricte en CI relève
+# de l'issue Transverse « Sûreté, sécurité & docs ». Ce fichier fixe la base.
+# Schéma cargo-deny v2.
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+# Licences permissives acceptées. À affiner quand la licence du projet sera
+# fixée (README : « LICENSE à définir »).
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

@@ -1,0 +1,12 @@
+# Fins de ligne normalisées en LF dans l'arbre de travail, y compris sur Windows
+# (où le runner CI a core.autocrlf=true). Indispensable pour que
+# `cargo fmt --check` (rustfmt newline_style=Unix) passe sur windows-latest, et
+# pour que les scripts bash .sh restent exécutables.
+* text=auto eol=lf
+
+*.rs    text eol=lf
+*.toml  text eol=lf
+*.sh    text eol=lf
+*.py    text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf

@@ -1,0 +1,13 @@
+[package]
+name = "nickmare-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+# Binaire final de l'outil : il s'appelle `nickmare` (cf. docs/ARCHITECTURE.md §6).
+[[bin]]
+name = "nickmare"
+path = "src/main.rs"
+
+[dependencies]
