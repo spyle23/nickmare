@@ -5,6 +5,7 @@
 //! d'audit chaîné et les traits d'abstraction (cf. `docs/ARCHITECTURE.md` §6).
 
 pub mod model;
+pub mod traits;
 
 /// Nom de la crate — jalon trivial « hello workspace » (issue #1).
 pub fn nom_crate() -> &'static str {
