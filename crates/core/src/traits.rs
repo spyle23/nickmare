@@ -111,12 +111,13 @@ impl MockNetworkProvider {
 #[async_trait]
 impl NetworkProvider for MockNetworkProvider {
     async fn discover_hosts(&self, network: &str) -> NetResult<Vec<Host>> {
-        let hosts = self.scenario.hosts_by_network.get(network).cloned().unwrap_or_default();
-        Ok(hosts)
+        let table = &self.scenario.hosts_by_network;
+        Ok(table.get(network).cloned().unwrap_or_default())
     }
 
     async fn scan_ports(&self, host: IpAddr, ports: &[u16]) -> NetResult<Vec<Port>> {
-        let known = self.scenario.ports_by_host.get(&host).cloned().unwrap_or_default();
+        let table = &self.scenario.ports_by_host;
+        let known = table.get(&host).cloned().unwrap_or_default();
         let selected: Vec<Port> = known
             .into_iter()
             .filter(|port| ports.is_empty() || ports.contains(&port.number))
@@ -156,7 +157,8 @@ mod tests {
         // Scan de ports du serveur.
         let target = ip("192.168.1.10");
         let ports = provider.scan_ports(target, &[22, 80, 443]).await.unwrap();
-        assert!(ports.iter().any(|p| p.number == 22 && p.state == PortState::Open));
+        let ssh = ports.iter().find(|p| p.number == 22).unwrap();
+        assert_eq!(ssh.state, PortState::Open);
 
         // Lecture de bannière → identification du service.
         let banner = provider.read_banner(target, 22).await.unwrap();
@@ -177,9 +179,12 @@ mod tests {
     #[tokio::test]
     async fn reseau_ou_hote_inconnu_renvoie_vide() {
         let provider = MockNetworkProvider::new(MockScenario::default());
-        assert!(provider.discover_hosts("10.0.0.0/8").await.unwrap().is_empty());
-        assert!(provider.scan_ports(ip("10.0.0.1"), &[22]).await.unwrap().is_empty());
-        assert!(provider.read_banner(ip("10.0.0.1"), 22).await.unwrap().is_none());
+        let hosts = provider.discover_hosts("10.0.0.0/8").await.unwrap();
+        let ports = provider.scan_ports(ip("10.0.0.1"), &[22]).await.unwrap();
+        let banner = provider.read_banner(ip("10.0.0.1"), 22).await.unwrap();
+        assert!(hosts.is_empty());
+        assert!(ports.is_empty());
+        assert!(banner.is_none());
     }
 
     // Prouve l'injectabilité en générique : toute impl de NetworkProvider convient.
