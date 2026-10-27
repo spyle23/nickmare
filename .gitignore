@@ -20,6 +20,10 @@ Cargo.lock.orig
 # Runs d'orchestration (journal NDJSON + méta) — observabilité locale, jamais commitée
 /.nickmare/
 
+# Python (outillage de run : run_journal.py / run_dashboard.py)
+__pycache__/
+*.pyc
+
 # OS / éditeurs
 .DS_Store
 Thumbs.db
