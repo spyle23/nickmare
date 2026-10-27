@@ -1,11 +1,12 @@
-//! Crate `core` de Nickmare (placeholder Phase 0, issue #1).
+//! Crate `core` de Nickmare — logique métier pure et testable, sans I/O réseau.
 //!
-//! Les modules réels arrivent dans les phases suivantes de la roadmap
-//! (cf. `docs/ARCHITECTURE.md` §6). Cette crate est volontairement vide mais
-//! compilable, pour établir le workspace et la matrice CI.
+//! Elle regroupe les types partagés par tous les niveaux (`model`), et accueillera
+//! dans les tickets suivants le scope, les garde-fous (le « mur »), le journal
+//! d'audit chaîné et les traits d'abstraction (cf. `docs/ARCHITECTURE.md` §6).
 
-/// Nom de la crate — jalon trivial « hello workspace » (issue #1) : prouve que
-/// la matrice CI exécute bien les tests de chaque crate sur Windows et Linux.
+pub mod model;
+
+/// Nom de la crate — jalon trivial « hello workspace » (issue #1).
 pub fn nom_crate() -> &'static str {
     "core"
 }
