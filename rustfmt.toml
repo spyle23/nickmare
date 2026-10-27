@@ -1,0 +1,6 @@
+# Configuration rustfmt (issue #1). Uniquement des options stables, pour que
+# `cargo fmt --check` fonctionne sur la toolchain stable épinglée.
+#
+# newline_style = Unix : fins de ligne LF cohérentes sur Windows comme sur Linux
+# (couplé à .gitattributes), pour que `cargo fmt --check` passe sur les deux OS.
+newline_style = "Unix"

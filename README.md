@@ -6,8 +6,33 @@ Destiné **exclusivement** à des engagements de test d'intrusion **autorisés p
 l'audit de réseaux dont l'utilisateur est propriétaire ou gestionnaire, et à l'apprentissage
 de la sécurité réseau en **laboratoire contrôlé et isolé**.
 
-- **Statut** : conception (v0.2) — aucune ligne de code encore écrite.
+- **Statut** : fondations (v0.2) — workspace Cargo et CI multiplateforme en place (Phase 0).
 - **Spécification** : voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Prérequis système
+
+Nickmare est multiplateforme (Windows / Linux). La capture de paquets et le scan SYN
+nécessitent une bibliothèque de capture native :
+
+- **Linux** : `libpcap` (paquet de la distribution, p. ex. `libpcap-dev` / `libpcap-devel`).
+  Le SYN scan et la capture brute requièrent la capability `CAP_NET_RAW` (ou `root`).
+- **Windows** : [**Npcap**](https://npcap.com/) requis pour la capture et le SYN scan.
+  Sa présence est détectée au démarrage ; à défaut, un message clair est affiché.
+
+Le mode `tcp_connect_only` fonctionne sans privilèges élevés ni bibliothèque de capture.
+
+## Compiler & tester
+
+```sh
+cargo build --workspace      # compile toutes les crates
+cargo test  --workspace      # lance les tests
+cargo fmt --all -- --check   # vérifie le formatage
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+La toolchain est épinglée par [`rust-toolchain.toml`](rust-toolchain.toml) ; la CI
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) rejoue build, test, `fmt` et
+`clippy` sur Windows **et** Linux.
 
 ## Principes directeurs
 

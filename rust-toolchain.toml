@@ -1,0 +1,6 @@
+# Toolchain Rust épinglée (issue #1) : même version pour tous les développeurs
+# et pour la CI. `rustfmt` et `clippy` sont requis par la chaîne de qualité.
+[toolchain]
+channel = "1.83.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

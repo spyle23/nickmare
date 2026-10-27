@@ -1,0 +1,31 @@
+# Workspace Cargo de Nickmare (issue #1, cf. docs/ARCHITECTURE.md §6).
+#
+# Les crates sont vides mais compilables au départ : chaque phase de la roadmap
+# (Phase 0 → Phase 9) les remplit de façon incrémentale. Aucune dépendance
+# externe n'est tirée tant qu'une crate n'en a pas besoin, pour garder la CI
+# rapide pendant la phase de fondations.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/net",
+    "crates/cve",
+    "crates/exploit",
+    "crates/crack",
+    "crates/emulation",
+    "crates/report",
+    "crates/cli",
+]
+
+# Métadonnées partagées, héritées par chaque crate via `*.workspace = true`.
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.83"
+repository = "https://github.com/spyle23/nickmare"
+
+[profile.release]
+# Binaire d'audit : build optimisé et dépouillé.
+strip = true
+lto = "thin"
