@@ -86,10 +86,12 @@ d'orchestration (et n'ouvre pas le dashboard) ; `--no-dashboard` lance le run sa
 Le lanceur **ne merge rien** : la fusion reste pilotée par le label `auto-merge` + CI verte.
 
 Le dashboard terminal (rafraîchi, couleurs, badges de phase, barre de progression, minuteurs) se
-relance seul sur le run le plus récent :
+relance seul sur le run le plus récent. Il est écrit en **Python** et tourne **nativement dans
+PowerShell** (pas besoin de Git Bash) ; `q` quitte la boucle live :
 
 ```
-scripts/run-dashboard.sh [<run_id|chemin journal>] [--once] [--interval N]
+python scripts/run_dashboard.py [<run_id|chemin journal>] [--once] [--interval N]
+scripts/run-dashboard.sh      [<run_id|chemin journal>] [--once] [--interval N]   # shim bash équivalent
 ```
 
 ### Contrat de journal de run
@@ -109,13 +111,19 @@ Schéma d'un événement :
   "agent": "orchestrateur|dev-ticket|qa-ticket", "pr": 34, "detail": "…" }
 ```
 
-Les événements sont émis via la bibliothèque sourçable
-[`scripts/lib/run-journal.sh`](../scripts/lib/run-journal.sh) :
+Le journal est implémenté en Python ([`scripts/run_journal.py`](../scripts/run_journal.py)). Les
+agents et l'orchestrateur l'émettent via le **shim sourçable**
+[`scripts/lib/run-journal.sh`](../scripts/lib/run-journal.sh), qui délègue au Python (interface
+inchangée) :
 
 ```
-source scripts/lib/run-journal.sh
+source scripts/lib/run-journal.sh                   # shim -> run_journal.py
 id=$(nm_run_init "Phase 0 — Fondations" 2)          # crée le run, renvoie son id
 nm_log_phase 12 dev --agent dev-ticket --detail "…" # ajoute un événement (run le plus récent)
+
+# Équivalent direct, sans bash :
+python scripts/run_journal.py init "Phase 0 — Fondations" 2
+python scripts/run_journal.py log 12 dev --agent dev-ticket --detail "…"
 ```
 
 La **phase courante** d'un ticket est le dernier événement le concernant ; sa **durée** est

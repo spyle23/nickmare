@@ -80,12 +80,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Tests de close-linked-issues.sh
         run: bash .github/scripts/tests/close-linked-issues.test.sh
-      - name: Tests du journal de run (run-journal.sh)
-        run: bash .github/scripts/tests/run-journal.test.sh
-      - name: Tests du dashboard de run (run-dashboard.sh)
-        run: bash .github/scripts/tests/run-dashboard.test.sh
+      - name: Tests du journal de run (run_journal.py)
+        run: python .github/scripts/tests/test_run_journal.py
+      - name: Tests du dashboard de run (run_dashboard.py)
+        run: python .github/scripts/tests/test_run_dashboard.py
       - name: Tests du lanceur de run (run-jalon.sh)
         run: bash .github/scripts/tests/run-jalon.test.sh
 
