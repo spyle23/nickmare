@@ -1,0 +1,59 @@
+{
+  "hosts_by_network": {
+    "192.168.1.0/24": [
+      {
+        "ip": "192.168.1.1",
+        "mac": [0, 26, 43, 60, 77, 94],
+        "hostname": "gw.local",
+        "os_guess": "NetworkDevice",
+        "ports": [],
+        "role": "Gateway",
+        "compromised": false,
+        "first_seen": "2023-11-14T22:13:20Z"
+      },
+      {
+        "ip": "192.168.1.10",
+        "mac": null,
+        "hostname": "srv.local",
+        "os_guess": "Linux",
+        "ports": [],
+        "role": "Server",
+        "compromised": false,
+        "first_seen": "2023-11-14T22:13:20Z"
+      }
+    ]
+  },
+  "ports_by_host": {
+    "192.168.1.10": [
+      {
+        "number": 22,
+        "proto": "Tcp",
+        "state": "Open",
+        "service": {
+          "name": "ssh",
+          "product": "OpenSSH",
+          "version": "9.6",
+          "banner": null
+        }
+      },
+      {
+        "number": 80,
+        "proto": "Tcp",
+        "state": "Closed",
+        "service": null
+      }
+    ]
+  },
+  "banners": [
+    {
+      "host": "192.168.1.10",
+      "port": 22,
+      "service": {
+        "name": "ssh",
+        "product": "OpenSSH",
+        "version": "9.6",
+        "banner": "SSH-2.0-OpenSSH_9.6"
+      }
+    }
+  ]
+}
