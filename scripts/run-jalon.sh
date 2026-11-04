@@ -6,8 +6,12 @@
 # dashboard live sur ce run.
 #
 # Usage :
-#   scripts/run-jalon.sh "<titre du jalon>" [--max-parallel N] [--dry-run] [--no-dashboard]
+#   scripts/run-jalon.sh "<titre du jalon>" [--authorize] [--max-parallel N] [--dry-run] [--no-dashboard]
 #
+#   --authorize       autorisation humaine groupée (porte unique) : SANS ce drapeau, le run
+#                     n'affiche que le plan et s'arrête. AVEC, l'orchestrateur enchaîne tous les
+#                     tickets du jalon en autonomie (y compris type:security / prio:P0), sans
+#                     redemander ticket par ticket. Alias : --yes.
 #   --max-parallel N  agents dev simultanés (transmis à /run-jalon, défaut 2)
 #   --dry-run         affiche le plan (aucun agent lancé, dashboard non ouvert)
 #   --no-dashboard    lance le run sans ouvrir le dashboard
@@ -32,16 +36,18 @@ CLAUDE_CMD=${NM_CLAUDE_CMD:-claude}
 DASHBOARD_CMD=${NM_DASHBOARD_CMD:-"$HERE/run-dashboard.sh"}
 GH_CMD=${NM_GH_CMD:-gh}
 
-usage() { sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 DRY_RUN=0
+AUTHORIZE=0
 NO_DASHBOARD=0
 MAX_PARALLEL=2
 MILESTONE=""
 
 while [ $# -gt 0 ]; do
   case $1 in
-    --dry-run)       DRY_RUN=1; shift ;;
+    --dry-run)         DRY_RUN=1; shift ;;
+    --authorize|--yes) AUTHORIZE=1; shift ;;
     --no-dashboard)  NO_DASHBOARD=1; shift ;;
     --max-parallel)  MAX_PARALLEL=${2:-2}; shift 2 ;;
     -h|--help)       usage; exit 0 ;;
@@ -78,9 +84,18 @@ if [ "$DRY_RUN" = 0 ] && [ "${NM_SKIP_TITLES:-}" != 1 ] && command -v "$GH_CMD" 
     --json number,title -q '.[] | "\(.number)\t\(.title)"' > "$RUN_DIR/titles.tsv" 2>/dev/null || true
 fi
 
+# Porte unique : sans autorisation humaine explicite (--authorize), on se limite au plan.
+# L'orchestrateur `-p` est non interactif ; le drapeau EST l'accord humain (fail-safe).
+if [ "$DRY_RUN" = 0 ] && [ "$AUTHORIZE" = 0 ]; then
+  echo "Aucune autorisation (--authorize) : affichage du plan uniquement, aucun agent lancé." >&2
+  echo "Pour exécuter le jalon en autonomie, relance avec --authorize." >&2
+  DRY_RUN=1
+fi
+
 # Commande d'orchestration.
 PROMPT="/run-jalon \"$MILESTONE\" --max-parallel $MAX_PARALLEL"
 [ "$DRY_RUN" = 1 ] && PROMPT="$PROMPT --dry-run"
+[ "$AUTHORIZE" = 1 ] && PROMPT="$PROMPT --authorize"
 
 if [ "$DRY_RUN" = 1 ]; then
   echo "Mode --dry-run : affichage du plan, aucun effet de bord d'orchestration."

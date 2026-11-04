@@ -18,6 +18,12 @@ coordonnant deux sous-agents : `dev-ticket` (développement) et `qa-ticket` (val
 - **1er argument** : le **titre exact** du milestone (ex. `Phase 0 — Fondations`). Obligatoire.
 - `--max-parallel N` : nombre max d'agents dev simultanés (défaut **2**).
 - `--dry-run` : affiche le **plan** et s'arrête, sans lancer aucun agent ni créer de branche.
+- `--authorize` : **autorisation humaine groupée** (porte unique). Sa présence atteste qu'un humain
+  a validé **tout** le run en amont : l'orchestrateur enchaîne alors les tickets en autonomie, y
+  compris `type:security`/`prio:P0` et le jalon #17, **sans redemander ticket par ticket**.
+  **Absent** → tu te limites au plan (comme `--dry-run`). En session interactive tu peux obtenir
+  cette autorisation en la **demandant une seule fois** ; en mode `-p` non interactif, seul le
+  drapeau `--authorize` l'accorde.
 
 ## Contexte
 
@@ -44,32 +50,59 @@ l'étape 1, à partir de `$ARGUMENTS` privé des drapeaux.
    sont déjà **fermées/mergées**.
 3. Ordonne : les tickets **`prio:P0`** (socle) d'abord, puis tri topologique. Regroupe en **lots
    parallélisables** les tickets prêts et mutuellement indépendants (taille de lot ≤ `--max-parallel`).
-4. Marque les **points d'arrêt humain** : tout ticket **`type:security`** ou **`prio:P0`**, et le
-   **jalon de revue #17** (garde-fou avant N2–N4). Ces tickets ne sont **jamais** traités en autonomie.
+4. Repère les **tickets sensibles** : tout ticket **`type:security`** ou **`prio:P0`**, et le
+   **jalon de revue #17** (garde-fou avant N2–N4). Ils ne bloquent **plus** le run ticket par
+   ticket : ils sont couverts par l'**autorisation groupée unique** demandée une seule fois au
+   lancement (étape 3.0). Énumère-les dès le plan, pour que l'humain sache exactement ce qu'il
+   autorise avant de dire oui.
 
 ### 2. Si `--dry-run`
 
 Affiche le plan et **arrête-toi** (aucun effet de bord) :
 
 - l'ordre des lots et, dans chaque lot, les tickets lancés en parallèle ;
-- pour chaque ticket : n°, titre, type, dépendances, et s'il requiert une **validation humaine** ;
+- pour chaque ticket : n°, titre, type, dépendances, et s'il est **sensible** (donc couvert par
+  l'autorisation groupée de l'étape 3.0) ;
 - les tickets **bloqués** (dépendance non résolue) et pourquoi.
 
 ### 3. Exécuter (hors `--dry-run`)
 
-Pour chaque lot, dans l'ordre :
+#### 3.0 Autorisation groupée (porte unique, une seule fois)
 
-1. **Points d'arrêt humain d'abord** : si le lot contient un ticket `type:security`/`prio:P0` ou
-   touche au jalon #17, **arrête-toi et demande une validation humaine explicite** avant de lancer
-   quoi que ce soit dessus. Sans accord, tu ne le traites pas (human-in-the-loop, fail-safe).
-2. **Développement en parallèle** : lance un sous-agent **`dev-ticket`** par ticket prêt du lot
-   (≤ `--max-parallel`), chacun en **worktree isolé** pour éviter les collisions de branche :
+Avant de lancer le **premier** lot, présente le **plan complet** et **énumère les tickets
+sensibles** (`type:security`, `prio:P0`, jalon #17) qui seront traités. Il te faut une **autorisation
+humaine groupée** — c'est la **seule** intervention humaine du run :
+
+- Si `--authorize` est présent dans `$ARGUMENTS`, ou si l'humain te l'accorde explicitement en
+  session interactive → **autorisation acquise**.
+- **Sinon** → tu t'en tiens au plan (comme `--dry-run`) et tu **t'arrêtes**, sans lancer aucun
+  agent. Fail-safe : le défaut est de ne rien faire. (En mode `-p` non interactif, tu ne peux pas
+  « demander » : seul `--authorize` accorde la porte.)
+
+Une fois la porte franchie, tu **n'interromps plus** le run pour une validation : tu **organises et
+enchaînes** les lots toi-même — en **parallèle** quand les dépendances le permettent, sinon **un par
+un** — jusqu'à vider le jalon. **L'humain ne nomme jamais les tickets.** Consigne la porte, puis
+dérive le **marqueur** à transmettre aux agents dev sur les tickets sensibles :
+
+```
+nm_log_phase 0 queued --agent orchestrateur --detail "run autorisé — porte unique"
+# marqueur d'autorisation (à recopier dans le prompt des agents, cf. 3.1) :
+AUTORISATION-RUN: <NM_RUN_ID> — validation humaine groupée accordée. Tickets P0/security couverts.
+```
+
+#### 3.1 Pour chaque lot, dans l'ordre
+
+1. **Développement en parallèle** : lance un sous-agent **`dev-ticket`** par ticket prêt du lot
+   (≤ `--max-parallel`), chacun en **worktree isolé** pour éviter les collisions de branche. Pour
+   un ticket **sensible**, **recopie le marqueur d'autorisation** dans le prompt — sinon l'agent
+   refuse par fail-safe :
 
    ```
-   Task(subagent_type="dev-ticket", prompt="Traite l'issue #<N>. <contraintes éventuelles>")
+   Task(subagent_type="dev-ticket", prompt="Traite l'issue #<N>. <contraintes éventuelles>
+   AUTORISATION-RUN: <NM_RUN_ID> — validation humaine groupée accordée. Tickets P0/security couverts.")
    ```
 
-3. **Validation QA** : dès qu'un agent dev a livré sa PR, lance un sous-agent **`qa-ticket`** dessus :
+2. **Validation QA** : dès qu'un agent dev a livré sa PR, lance un sous-agent **`qa-ticket`** dessus :
 
    ```
    Task(subagent_type="qa-ticket", prompt="Vérifie la PR #<PR> pour l'issue #<N>.")
@@ -79,12 +112,13 @@ Pour chaque lot, dans l'ordre :
    - **FAIL** → le label a été retiré par la QA ; renvoie le ticket à un agent dev avec le motif,
      puis re-QA. Ne merge jamais un `FAIL`.
 
-4. **Sérialiser les merges** : laisse les PR du lot se merger (CI verte), puis **re-synchronise
+3. **Sérialiser les merges** : laisse les PR du lot se merger (CI verte), puis **re-synchronise
    `main`** (`git switch main && git pull --ff-only`) avant d'attaquer le lot suivant, pour que les
    worktrees repartent d'une base à jour et éviter les conflits.
 
-5. **Boucle** jusqu'à ce que le jalon soit vidé, ou que seuls restent des tickets bloqués
-   (dépendance non résolue, QA FAIL non corrigeable, ou point d'arrêt humain non validé).
+4. **Boucle** jusqu'à ce que le jalon soit vidé, ou que seuls restent des tickets **réellement**
+   bloqués (dépendance non résolue, ou QA FAIL non corrigeable). Il n'y a **plus** de point d'arrêt
+   humain en cours de run : l'unique validation a eu lieu à l'étape 3.0.
 
 ### 4. Compte rendu de run
 
@@ -118,8 +152,10 @@ interrompre le run.
 
 ## Règles non négociables (cf. `docs/ARCHITECTURE.md` §3 & §11, `docs/TESTING.md`)
 
-- **Human-in-the-loop pour le critique** : arrêt + validation humaine sur `type:security`/`prio:P0`
-  et au jalon de revue #17. Jamais d'autonomie dessus.
+- **Human-in-the-loop pour le critique** : une **autorisation humaine groupée unique** au lancement
+  (étape 3.0, drapeau `--authorize` ou accord explicite en session) couvre les tickets
+  `type:security`/`prio:P0` et le jalon de revue #17. Sans elle, le run ne démarre pas ; avec elle,
+  l'orchestrateur enchaîne **sans redemander**. L'humain ne nomme **jamais** les tickets un par un.
 - **Non destructif / fail-safe** : au moindre doute (dépendance non résolue, conflit, QA ambigu),
   **arrête-toi** au lieu de forcer.
 - **CI jamais contournée** : le merge reste piloté par le label `auto-merge` + CI verte ; tu ne
