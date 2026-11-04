@@ -113,5 +113,56 @@ class JournalTests(unittest.TestCase):
         self.assertNotEqual(run("dir", "nexiste-pas", env=self.env).returncode, 0)
 
 
+def git(cwd, *args):
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        cwd=cwd, check=True, capture_output=True,
+    )
+
+
+class WorktreeTests(unittest.TestCase):
+    """Les agents dev/QA tournent en worktree : ils doivent écrire dans le journal
+    du dépôt principal, celui que lit le dashboard (#47)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        base = Path(self._tmp.name).resolve()
+        self.main = base / "principal"
+        self.wt = base / "agent-wt"
+        self.main.mkdir()
+        git(self.main, "init", "-q")
+        git(self.main, "commit", "-q", "--allow-empty", "-m", "init")
+        git(self.main, "worktree", "add", "-q", str(self.wt), "-b", "agent")
+        # Ni NM_RUNS_ROOT ni NM_RUN_ID hérités : seule la résolution git compte.
+        self.env = {k: v for k, v in os.environ.items() if k not in ("NM_RUNS_ROOT", "NM_RUN_ID")}
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def cli(self, cwd, *args):
+        return subprocess.run(
+            [sys.executable, str(JOURNAL_PY), *args], cwd=cwd, env=self.env,
+            capture_output=True, text=True, encoding="utf-8",
+        )
+
+    def test_root_depuis_worktree_vise_le_depot_principal(self):
+        attendu = (self.main / ".nickmare" / "runs").resolve()
+        depuis_wt = Path(self.cli(self.wt, "root").stdout.strip()).resolve()
+        depuis_main = Path(self.cli(self.main, "root").stdout.strip()).resolve()
+        self.assertEqual(depuis_wt, attendu)
+        self.assertEqual(depuis_main, attendu)
+
+    def test_log_depuis_worktree_ecrit_dans_le_journal_principal(self):
+        rid = self.cli(self.main, "init", "Phase 0 — Fondations").stdout.strip()
+        self.assertTrue(rid)
+        res = self.cli(self.wt, "log", "7", "dev", "--agent", "dev-ticket")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        journal = self.main / ".nickmare" / "runs" / rid / "journal.ndjson"
+        lignes = journal.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lignes), 1)
+        self.assertEqual(json.loads(lignes[0])["ticket"], 7)
+        self.assertFalse((self.wt / ".nickmare").exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

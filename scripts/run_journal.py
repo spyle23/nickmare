@@ -57,13 +57,31 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _git(*args: str) -> str:
+    out = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
+    return out.stdout.strip()
+
+
 def _git_top() -> Path:
+    """Racine du dépôt **principal**, y compris depuis un worktree secondaire.
+
+    Les agents dev/QA tournent dans des worktrees (``git worktree``) : leur
+    ``--show-toplevel`` est le worktree lui-même, où ``.nickmare/runs/`` (gitignoré)
+    n'existe pas — ils écriraient dans le vide pendant que le dashboard lit le
+    journal du dépôt principal (#47). Le dossier git *commun* à tous les worktrees
+    (``--git-common-dir``) désigne, lui, le ``.git`` du dépôt principal.
+    """
     try:
-        out = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=True,
-        )
-        top = out.stdout.strip()
+        common = Path(_git("rev-parse", "--git-common-dir"))
+        if not common.is_absolute():
+            common = Path.cwd() / common
+        common = common.resolve()
+        if common.name == ".git":
+            return common.parent
+    except Exception:
+        pass
+    try:  # dépôt atypique (sous-module, .git déporté) : racine du worktree courant
+        top = _git("rev-parse", "--show-toplevel")
         if top:
             return Path(top)
     except Exception:
@@ -72,7 +90,7 @@ def _git_top() -> Path:
 
 
 def runs_root() -> Path:
-    """Racine des runs : ``$NM_RUNS_ROOT`` sinon ``<racine git>/.nickmare/runs``."""
+    """Racine des runs : ``$NM_RUNS_ROOT`` sinon ``<dépôt principal>/.nickmare/runs``."""
     env = os.environ.get("NM_RUNS_ROOT")
     return Path(env) if env else _git_top() / ".nickmare" / "runs"
 

@@ -38,7 +38,7 @@ Traite l'issue de bout en bout :
 5. **PR reliée** au ticket (`Closes #N`) portant le label **`auto-merge`** ;
 6. attente de la CI et compte rendu du merge.
 
-## `/run-jalon <milestone> [--max-parallel N] [--dry-run]`
+## `/run-jalon <milestone> [--authorize] [--max-parallel N] [--dry-run]`
 
 Exécute un **jalon entier** de façon semi-autonome en coordonnant des agents. C'est un cran
 au-dessus du traitement unitaire : là où `/ticket` traite une issue, `/run-jalon` en traite tout un
@@ -49,27 +49,35 @@ Orchestrateur de run  (/run-jalon)
   │  lit les issues du milestone + leur section ## Dépendances
   │  → graphe de dépendances → ordre (prio:P0 d'abord) → lots parallélisables
   │
-  ├─ agent dev-ticket  ──┐  (plusieurs en parallèle, worktrees isolés)
-  ├─ agent dev-ticket  ──┤  → chacun : branche, implémentation, tests, PR + auto-merge
-  │                       │
+  ├─ agent dev-ticket  ──┐  (plusieurs en parallèle, worktrees isolés, au premier plan)
+  ├─ agent dev-ticket  ──┤  → chacun : branche depuis origin/main, implémentation, tests,
+  │                       │    PR reliée SANS label auto-merge
   └─ agent qa-ticket   ──┘  vérifie chaque PR contre les critères d'acceptation
-                            → PASS : laisse le merge auto ; FAIL : retire auto-merge, renvoie au dev
+                            → PASS : pose auto-merge (la CI verte merge) ; FAIL : pas de label, renvoie au dev
 ```
+
+**La QA est la porte du merge.** Si l'agent dev posait `auto-merge` à la création de la PR, la CI
+la fusionnerait dès qu'elle serait verte, avant le verdict QA (constaté sur #43–#45). Seul un
+`✅ QA PASS` pose donc le label.
 
 - **Orchestrateur** ([`.claude/commands/run-jalon.md`](../.claude/commands/run-jalon.md)) : ne
   considère « prêt » qu'un ticket dont toutes les dépendances sont fermées ; lance les agents dev par
   lots (≤ `--max-parallel`, défaut 2), puis la QA ; **sérialise les merges** et re-synchronise `main`
   entre les lots ; rend un **compte rendu de run** (ticket → PR → CI → verdict QA → statut).
 - **Agent développeur** ([`.claude/agents/dev-ticket.md`](../.claude/agents/dev-ticket.md)) :
-  logique de `/ticket` en worktree isolé (parallélisable).
+  logique de `/ticket` en worktree isolé (parallélisable) ; branche créée depuis `origin/main`
+  (jamais `git switch main`, refusé par git dans un worktree secondaire) ; PR sans `auto-merge`.
 - **Agent QA** ([`.claude/agents/qa-ticket.md`](../.claude/agents/qa-ticket.md)) : verdict
-  `PASS`/`FAIL` motivé ; ne code jamais, ne merge jamais.
+  `PASS`/`FAIL` motivé ; pose `auto-merge` sur `PASS` ; ne code jamais, ne merge jamais.
 
-**Points d'arrêt humain (non négociables)** : aucun ticket `type:security` ni `prio:P0` n'est traité
-en autonomie, et le run refuse d'enjamber le **jalon de revue #17** (garde-fous avant N2–N4). Dans
-ces cas l'orchestrateur s'arrête et **demande une validation humaine**. Le merge reste toujours
-piloté par la CI verte — jamais de merge manuel forcé. Utilise `--dry-run` pour afficher le plan
-sans aucun effet de bord.
+**Autorisation humaine : une porte unique, au lancement.** Les tickets `type:security`,
+`prio:P0` et le **jalon de revue #17** (garde-fous avant N2–N4) sont énumérés dans le plan, puis
+couverts par **une seule** autorisation groupée : `--authorize` (alias `--yes`) sur le lanceur, ou
+accord explicite en session interactive. Sans elle, le run s'en tient au plan et ne lance aucun
+agent. Avec elle, l'orchestrateur enchaîne seul et transmet aux agents dev le marqueur
+`AUTORISATION-RUN` ; un agent `dev-ticket` invoqué hors run autorisé refuse toujours un ticket
+sensible. Le merge reste piloté par la QA + la CI verte — jamais de merge manuel forcé.
+`--dry-run` affiche le plan sans aucun effet de bord.
 
 ## Lanceur de run & dashboard live (observabilité)
 
@@ -77,11 +85,14 @@ Pour lancer un jalon depuis un terminal et **suivre en direct** quel ticket est 
 phase et depuis combien de temps :
 
 ```
-scripts/run-jalon.sh "Phase 0 — Fondations" [--max-parallel N] [--dry-run] [--no-dashboard]
+scripts/run-jalon.sh "Phase 0 — Fondations" --authorize [--max-parallel N] [--dry-run] [--no-dashboard]
 ```
 
 Le lanceur initialise un **run observable**, lance l'orchestrateur `/run-jalon` (via `claude -p`)
-et ouvre le dashboard sur ce run. `--dry-run` affiche le plan sans aucun effet de bord
+et ouvre le dashboard sur ce run. Sans `--authorize`, il n'affiche que le plan (fail-safe). Il
+exporte `NM_RUN_ID` et `NM_RUNS_ROOT` : les agents, qui tournent dans des worktrees, écrivent ainsi
+dans le journal du dépôt principal — celui que lit le dashboard (la racine est de toute façon
+résolue depuis le dépôt principal via `git --git-common-dir`). `--dry-run` affiche le plan sans aucun effet de bord
 d'orchestration (et n'ouvre pas le dashboard) ; `--no-dashboard` lance le run sans l'interface.
 Le lanceur **ne merge rien** : la fusion reste pilotée par le label `auto-merge` + CI verte.
 

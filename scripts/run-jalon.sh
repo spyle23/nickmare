@@ -72,7 +72,11 @@ fi
 
 RUN_ID=$(nm_run_init "$MILESTONE" "$MAX_PARALLEL") || { echo "Échec de l'initialisation du run." >&2; exit 1; }
 RUN_DIR=$(nm_run_dir "$RUN_ID")
+# NM_RUNS_ROOT résolu une fois ici et exporté : les agents dev/QA tournent dans
+# des worktrees, et doivent écrire dans le journal que lit le dashboard (#47).
+RUNS_ROOT=$(nm_runs_root) || RUNS_ROOT=""
 export NM_RUN_ID="$RUN_ID" NM_RUN_DIR="$RUN_DIR"
+[ -n "$RUNS_ROOT" ] && export NM_RUNS_ROOT="$RUNS_ROOT"
 
 echo "Run initialisé : $RUN_ID"
 echo "  jalon   : $MILESTONE"

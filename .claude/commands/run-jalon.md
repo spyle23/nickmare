@@ -1,7 +1,7 @@
 ---
 description: Orchestre un run de jalon — lit les issues d'un milestone, en déduit l'ordre et les lots parallélisables, délègue aux agents dev puis QA, et rend compte. Merge piloté par CI verte, arrêt humain sur le critique.
-argument-hint: <titre exact du milestone> [--max-parallel N] [--dry-run]
-allowed-tools: Task, Bash, Read, Grep, Glob
+argument-hint: <titre exact du milestone> [--authorize] [--max-parallel N] [--dry-run]
+allowed-tools: Agent, Task, Bash, Read, Grep, Glob
 ---
 
 Tu es l'**orchestrateur de run** du projet **Nickmare** (outil d'audit de sécurité réseau en Rust,
@@ -93,28 +93,50 @@ AUTORISATION-RUN: <NM_RUN_ID> — validation humaine groupée accordée. Tickets
 #### 3.1 Pour chaque lot, dans l'ordre
 
 1. **Développement en parallèle** : lance un sous-agent **`dev-ticket`** par ticket prêt du lot
-   (≤ `--max-parallel`), chacun en **worktree isolé** pour éviter les collisions de branche. Pour
-   un ticket **sensible**, **recopie le marqueur d'autorisation** dans le prompt — sinon l'agent
-   refuse par fail-safe :
+   (≤ `--max-parallel`), **tous dans un seul message** (c'est ce qui les fait travailler en même
+   temps), chacun avec ces deux paramètres, **non négociables** :
+
+   - `isolation: "worktree"` — un worktree isolé par agent, sinon leurs branches se marchent dessus ;
+   - `run_in_background: false` — sous `claude -p` (lanceur `scripts/run-jalon.sh`), le processus
+     **s'arrête dès que tu cesses d'écrire** : un agent lancé en arrière-plan meurt alors au milieu
+     de son ticket, sans PR. Au premier plan, les agents d'un même message tournent quand même en
+     parallèle, et l'appel ne te rend la main qu'une fois **tous** leurs comptes rendus reçus.
+
+   **Ne termine jamais ton tour tant qu'un agent du lot n'a pas rendu son compte rendu** — ni pour
+   annoncer le lancement, ni pour un point d'étape.
+
+   Pour un ticket **sensible**, **recopie le marqueur d'autorisation** dans le prompt — sinon
+   l'agent refuse par fail-safe. Chaque prompt est autonome (l'agent ne voit pas cette conversation) :
 
    ```
-   Task(subagent_type="dev-ticket", prompt="Traite l'issue #<N>. <contraintes éventuelles>
+   Agent(subagent_type="dev-ticket", isolation="worktree", run_in_background=false,
+         prompt="Traite l'issue #<N>. <contraintes éventuelles>
+   NM_RUN_ID=<NM_RUN_ID> (exporte-le avant tes appels nm_log_phase).
    AUTORISATION-RUN: <NM_RUN_ID> — validation humaine groupée accordée. Tickets P0/security couverts.")
    ```
 
-2. **Validation QA** : dès qu'un agent dev a livré sa PR, lance un sous-agent **`qa-ticket`** dessus :
+2. **Validation QA — la porte du merge** : l'agent dev ouvre sa PR **sans** le label
+   `auto-merge`. Dès qu'il a livré, lance un sous-agent **`qa-ticket`** dessus (même règle :
+   `run_in_background: false` ; pas besoin de worktree, la QA ne modifie rien) :
 
    ```
-   Task(subagent_type="qa-ticket", prompt="Vérifie la PR #<PR> pour l'issue #<N>.")
+   Agent(subagent_type="qa-ticket", run_in_background=false,
+         prompt="Vérifie la PR #<PR> pour l'issue #<N>. NM_RUN_ID=<NM_RUN_ID>.")
    ```
 
-   - **PASS** → laisse le merge auto se faire (label `auto-merge` + CI verte).
-   - **FAIL** → le label a été retiré par la QA ; renvoie le ticket à un agent dev avec le motif,
-     puis re-QA. Ne merge jamais un `FAIL`.
+   - **PASS** → la QA a posé le label `auto-merge` : la CI verte fusionne la PR.
+   - **FAIL** → aucun label : la PR ne peut pas être fusionnée. Renvoie le ticket à un agent dev
+     (mêmes paramètres qu'en 1, sur la branche existante) avec le motif, puis re-QA. Ne pose jamais
+     `auto-merge` toi-même et ne merge jamais un `FAIL`.
 
-3. **Sérialiser les merges** : laisse les PR du lot se merger (CI verte), puis **re-synchronise
-   `main`** (`git switch main && git pull --ff-only`) avant d'attaquer le lot suivant, pour que les
-   worktrees repartent d'une base à jour et éviter les conflits.
+   Si une PR du lot porte `auto-merge` **sans** commentaire `✅ QA PASS`, retire le label
+   (`gh pr edit <PR> --remove-label auto-merge`) et fais passer la QA : un merge ne précède jamais
+   sa QA.
+
+3. **Sérialiser les merges** : attends que les PR `PASS` du lot soient mergées (CI verte, `gh pr
+   view <PR> --json state`), puis **re-synchronise `main`** dans le dépôt principal
+   (`git switch main && git pull --ff-only`) avant d'attaquer le lot suivant : les worktrees du lot
+   suivant partent de `origin/main`, qui doit porter le lot précédent.
 
 4. **Boucle** jusqu'à ce que le jalon soit vidé, ou que seuls restent des tickets **réellement**
    bloqués (dépendance non résolue, ou QA FAIL non corrigeable). Il n'y a **plus** de point d'arrêt
@@ -158,6 +180,7 @@ interrompre le run.
   l'orchestrateur enchaîne **sans redemander**. L'humain ne nomme **jamais** les tickets un par un.
 - **Non destructif / fail-safe** : au moindre doute (dépendance non résolue, conflit, QA ambigu),
   **arrête-toi** au lieu de forcer.
+- **QA avant merge** : le label `auto-merge` n'est posé que par l'agent QA, sur `PASS`.
 - **CI jamais contournée** : le merge reste piloté par le label `auto-merge` + CI verte ; tu ne
   forces jamais de merge manuel.
 - **Traçabilité** : le compte rendu de run consigne qui a fait quoi, quelle PR, quel verdict.
