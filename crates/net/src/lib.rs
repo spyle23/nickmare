@@ -23,11 +23,16 @@
 //! recon **active** (confinée au gate), TCP connect réutilisant le provider, UDP
 //! basique portable, et SYN demi-ouvert pur + brut Linux (labo).
 //!
+//! L'**identification de services** (#13, Phase 3) prolonge à son tour le scan
+//! dans [`service_id`] : elle **consomme** les ports ouverts et les bannières
+//! déjà capturées par le provider (sans rouvrir de socket), en extrait
+//! nom/produit/version par empreinte **pure et défensive**, et alimente carte et
+//! findings — le tout confiné au gate ([`service_id::identify_gated`]).
+//!
 //! Tout ce qui touche une socket réelle ou un privilège est soit **portable et
 //! testé en loopback** (repli TCP, UDP), soit **isolé derrière une abstraction**
 //! et réservé au labo (émission brute ARP/ICMP/SYN), de sorte que la CI reste
-//! verte sans réseau ni root (Windows + Linux). Identification de services et
-//! WiFi passif suivent dans les phases suivantes.
+//! verte sans réseau ni root (Windows + Linux). Le WiFi passif suit en Phase 4.
 
 pub mod arp;
 pub mod discovery;
@@ -38,6 +43,7 @@ pub mod portscan;
 pub mod privilege;
 pub mod probe;
 pub mod provider;
+pub mod service_id;
 pub mod tcp;
 
 /// Nom de la crate — jalon trivial « hello workspace » (issue #1) : prouve que
