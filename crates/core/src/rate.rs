@@ -103,7 +103,10 @@ mod tests {
         bucket.consume(now);
         assert!(bucket.available(now));
         bucket.consume(now);
-        assert!(!bucket.available(now), "le seau doit être vide après 2 jetons");
+        assert!(
+            !bucket.available(now),
+            "le seau doit être vide après 2 jetons"
+        );
     }
 
     #[test]

@@ -349,7 +349,10 @@ impl Discovery {
     ///
     /// Propage [`DiscoveryError`] si le CIDR est invalide ou trop vaste.
     pub fn sweep_duration(&self, cidr: &str) -> Result<Duration, DiscoveryError> {
-        Ok(sweep_duration(enumerate_hosts(cidr)?.len(), self.max_rate_pps))
+        Ok(sweep_duration(
+            enumerate_hosts(cidr)?.len(),
+            self.max_rate_pps,
+        ))
     }
 }
 
