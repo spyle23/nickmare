@@ -54,7 +54,7 @@ impl Version {
     #[must_use]
     pub fn parse(raw: &str) -> Self {
         let mut segments = Vec::new();
-        for part in raw.split(|c: char| matches!(c, '.' | '-' | '_' | '+' | '~' | ' ')) {
+        for part in raw.split(['.', '-', '_', '+', '~', ' ']) {
             if segments.len() >= MAX_SEGMENTS {
                 break;
             }
