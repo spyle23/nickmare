@@ -6,3 +6,14 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
+# Modèle (Host, NetworkMap), traits (NetworkProvider) et seau à jetons partagé
+# (rate::TokenBucket, réutilisé pour plafonner le débit de découverte).
+nickmare-core = { path = "../core" }
+# Instant fourni au seau à jetons (déterministe, sans horloge réelle).
+chrono = "0.4.38"
+
+# tokio figé (=) comme dans `core` : versions récentes > MSRV de la toolchain
+# épinglée (1.83). En dev-dependency seulement (runtime des tests async contre
+# le mock) — aucune I/O réseau n'est tirée ici (elle arrive avec #8).
+[dev-dependencies]
+tokio = { version = "=1.40.0", features = ["macros", "rt"] }

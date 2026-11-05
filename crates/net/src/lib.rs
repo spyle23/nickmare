@@ -1,8 +1,11 @@
-//! Crate `net` de Nickmare (placeholder Phase 0, issue #1).
+//! Crate `net` de Nickmare — implémentations réseau de niveau 1 (recon).
 //!
-//! Les modules réels arrivent dans les phases suivantes de la roadmap
-//! (cf. `docs/ARCHITECTURE.md` §6). Cette crate est volontairement vide mais
-//! compilable, pour établir le workspace et la matrice CI.
+//! Cf. `docs/ARCHITECTURE.md` §6. La **découverte** (recon passive : listing des
+//! réseaux à portée, ARP sweep + ping ICMP, débit plafonné) arrive en Phase 1
+//! (issue #7) dans [`discovery`]. Scan de ports, identification de services et
+//! WiFi passif suivent dans les phases suivantes.
+
+pub mod discovery;
 
 /// Nom de la crate — jalon trivial « hello workspace » (issue #1) : prouve que
 /// la matrice CI exécute bien les tests de chaque crate sur Windows et Linux.
