@@ -92,6 +92,26 @@ AUTORISATION-RUN: <NM_RUN_ID> — validation humaine groupée accordée. Tickets
 
 #### 3.1 Pour chaque lot, dans l'ordre
 
+0. **Point de contrôle (`gate`)** — **avant** de lancer le moindre agent du lot, consulte le gate
+   et **applique son code de sortie** (priorité : arrêt > quota > pause) :
+
+   ```
+   source scripts/lib/run-journal.sh
+   nm_gate   # imprime la décision ; son code de sortie commande la suite
+   ```
+
+   - **0 — continuer** : lance le lot normalement (étape 1).
+   - **1 — pause** : **finis le lot déjà en cours** (ne tue aucun agent : pas de branche orpheline),
+     puis **ne lance plus de lot**. Ré-interroge `nm_gate` périodiquement ; reprends quand il repasse
+     à 0 (après `unpause`). La pause d'origine **humaine** n'est levée **que** par un humain.
+   - **2 — arrêt** : ne lance **aucun** agent, clos proprement le run et termine par le compte rendu.
+     Indique **comment reprendre** : relancer `scripts/run-jalon.sh "<jalon>" --authorize` repartira
+     du `main` à jour (les PR déjà mergées ne sont pas refaites ; un `stop` est terminal pour *ce* run).
+   - **3 — plus rien à faire** : le jalon est vidé → compte rendu final.
+   - **4 — quota épuisé** : ne lance aucun agent ; `nm_gate` imprime l'heure de reprise. Attends
+     cette échéance (ou que le superviseur appelle `quota clear`), puis ré-interroge le gate. Une
+     retenue de **quota** se lève seule à l'échéance ; elle ne masque jamais une pause humaine.
+
 1. **Développement en parallèle** : lance un sous-agent **`dev-ticket`** par ticket prêt du lot
    (≤ `--max-parallel`), **tous dans un seul message** (c'est ce qui les fait travailler en même
    temps), chacun avec ces deux paramètres, **non négociables** :
@@ -171,6 +191,23 @@ Les agents dev/QA émettent `dev`/`tests`/`fix`/`qa` eux-mêmes. Le journal est 
 contient aucun secret ; il ne remplace pas le journal d'audit produit (c'est l'observabilité du
 **workflow de dev**). Émission best-effort : une erreur de journalisation ne doit jamais
 interrompre le run.
+
+### Piloter un run en cours (pause / arrêt / quota)
+
+L'état de contrôle vit dans `<run>/control.json` (écriture atomique). Chaque changement est
+journalisé (`paused` / `interrupted`) et apparaît en **bannière** sur le dashboard. Tu consultes ce
+contrôle via `nm_gate` (étape 3.1.0) ; un humain — ou le superviseur de quota (#49) — le pilote
+ainsi :
+
+```
+nm_pause  --reason "revue manuelle"   # pause d'origine humaine (gate → 1)
+nm_unpause                            # lève la pause humaine ; une pause quota reste
+nm_unpause --all                      # lève toutes les pauses (humaine + quota)
+nm_stop   --reason "fin de journée"   # arrêt du run (gate → 2) ; terminal pour ce run
+nm_status                             # état lisible + décision courante du gate
+nm_quota hold  --until +90m           # retenue de quota avec reprise (gate → 4)
+nm_quota clear                        # lève la retenue de quota (ne touche pas la pause humaine)
+```
 
 ## Règles non négociables (cf. `docs/ARCHITECTURE.md` §3 & §11, `docs/TESTING.md`)
 

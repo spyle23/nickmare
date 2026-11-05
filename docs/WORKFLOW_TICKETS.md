@@ -105,6 +105,49 @@ python scripts/run_dashboard.py [<run_id|chemin journal>] [--once] [--interval N
 scripts/run-dashboard.sh      [<run_id|chemin journal>] [--once] [--interval N]   # shim bash équivalent
 ```
 
+### Piloter un run en cours (pause, arrêt, quota)
+
+Un run long n'est plus une boîte noire qu'on ne peut qu'arrêter en tuant le processus (au risque
+de laisser une branche sans PR). Il porte un **état de contrôle** dans `<run>/control.json`
+(écriture atomique : fichier temporaire + `rename`), et un **point de contrôle (`gate`)** que
+l'orchestrateur consulte **avant chaque lot** pour décider s'il continue. Modèle repris de deux
+dispositifs internes : le `gate` à codes de sortie de *Spa & Booking* et la pause **d'origine
+typée** d'*hotelerie* (une pause humaine n'est jamais levée par une reprise automatique).
+
+```
+source scripts/lib/run-journal.sh
+nm_pause  --reason "revue manuelle"   # pause d'origine humaine
+nm_unpause                            # lève la pause humaine ; une pause quota reste active
+nm_unpause --all                      # lève toutes les pauses (humaine + quota)
+nm_stop   --reason "fin de journée"   # arrêt du run (terminal pour ce run)
+nm_status                             # état lisible + décision courante du gate
+nm_gate                               # décision d'avant-lot (code de sortie, voir ci-dessous)
+nm_quota hold  --until +90m           # retenue de quota (ex. limite d'usage) avec reprise
+nm_quota clear                        # lève la retenue de quota
+# Équivalent direct sans bash : python scripts/run_journal.py <sous-commande> …
+```
+
+`gate` consulte `control.json` et rend un **code de sortie** que l'orchestrateur applique
+(**priorité : arrêt > quota > pause**) :
+
+| Code | Sens | Conduite de l'orchestrateur |
+|------|------|------------------------------|
+| `0` | continuer | lance le lot |
+| `1` | pause | **finit le lot en cours** (aucun agent tué, pas de branche orpheline), n'en lance plus |
+| `2` | arrêt | ne lance aucun agent, clôt le run ; on reprend en relançant `run-jalon.sh` |
+| `3` | plus rien à faire | le jalon est vidé → compte rendu final |
+| `4` | quota épuisé | ne lance aucun agent ; `gate` imprime l'heure de reprise |
+
+Deux **origines de pause** coexistent : `human` (posée à la main, levée **seulement** par un humain
+via `unpause`) et `quota` (limite d'usage, avec échéance ; levée par `quota clear`, par `unpause
+--all`, ou d'elle-même à l'échéance). Ainsi `unpause` sans `--all` laisse une pause `quota` active,
+et `quota clear` ne lève **jamais** une pause `human`. Chaque changement est journalisé (phases
+`paused` / `interrupted`, append-only, sans secret) et s'affiche en **bannière** sur le dashboard
+(qui, quand, reprise prévue).
+
+**Fail-safe :** un `control.json` illisible fait rendre « pause » au `gate` (jamais « continuer ») —
+mieux vaut suspendre que lancer à l'aveugle.
+
 ### Contrat de journal de run
 
 Un run vit sous `.nickmare/runs/<run_id>/` (dossier **gitignoré**, local, jamais commité) :
