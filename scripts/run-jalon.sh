@@ -6,12 +6,16 @@
 # dashboard live sur ce run.
 #
 # Usage :
-#   scripts/run-jalon.sh "<titre du jalon>" [--authorize] [--max-parallel N] [--dry-run] [--no-dashboard]
+#   scripts/run-jalon.sh "<titre du jalon>" [--authorize] [--supervise] [--max-parallel N] [--dry-run] [--no-dashboard]
 #
 #   --authorize       autorisation humaine groupée (porte unique) : SANS ce drapeau, le run
 #                     n'affiche que le plan et s'arrête. AVEC, l'orchestrateur enchaîne tous les
 #                     tickets du jalon en autonomie (y compris type:security / prio:P0), sans
 #                     redemander ticket par ticket. Alias : --yes.
+#   --supervise       lance le SUPERVISEUR (scripts/run_supervise.py) au lieu d'un seul appel
+#                     orchestrateur : il enchaîne « un lot par appel », détecte la limite d'usage
+#                     Claude (quota), attend la réouverture de la fenêtre et relance (issue #49).
+#                     Exige --authorize (sinon plan seul, comme sans autorisation).
 #   --max-parallel N  agents dev simultanés (transmis à /run-jalon, défaut 2)
 #   --dry-run         affiche le plan (aucun agent lancé, dashboard non ouvert)
 #   --no-dashboard    lance le run sans ouvrir le dashboard
@@ -23,6 +27,7 @@
 # Variables d'environnement (surtout pour les tests) :
 #   NM_CLAUDE_CMD      commande de l'orchestrateur (défaut : claude)
 #   NM_DASHBOARD_CMD   commande du dashboard (défaut : scripts/run-dashboard.sh)
+#   NM_SUPERVISE_CMD   commande du superviseur (défaut : python scripts/run_supervise.py)
 #   NM_GH_CMD          commande gh pour les titres (défaut : gh)
 #   NM_SKIP_TITLES=1   n'essaie pas de récupérer les titres d'issues
 
@@ -36,11 +41,12 @@ CLAUDE_CMD=${NM_CLAUDE_CMD:-claude}
 DASHBOARD_CMD=${NM_DASHBOARD_CMD:-"$HERE/run-dashboard.sh"}
 GH_CMD=${NM_GH_CMD:-gh}
 
-usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 DRY_RUN=0
 AUTHORIZE=0
 NO_DASHBOARD=0
+SUPERVISE=0
 MAX_PARALLEL=2
 MILESTONE=""
 
@@ -48,6 +54,7 @@ while [ $# -gt 0 ]; do
   case $1 in
     --dry-run)         DRY_RUN=1; shift ;;
     --authorize|--yes) AUTHORIZE=1; shift ;;
+    --supervise)     SUPERVISE=1; shift ;;
     --no-dashboard)  NO_DASHBOARD=1; shift ;;
     --max-parallel)  MAX_PARALLEL=${2:-2}; shift 2 ;;
     -h|--help)       usage; exit 0 ;;
@@ -105,6 +112,34 @@ if [ "$DRY_RUN" = 1 ]; then
   echo "Mode --dry-run : affichage du plan, aucun effet de bord d'orchestration."
   "$CLAUDE_CMD" -p "$PROMPT"
   exit $?
+fi
+
+# Mode superviseur (issue #49) : au lieu d'un unique appel orchestrateur, on lance
+# scripts/run_supervise.py, qui enchaîne « un lot par appel », détecte la limite
+# d'usage Claude, attend la réouverture de la fenêtre et relance. Il rejoue
+# l'autorisation groupée (--authorize), sans jamais l'élargir. N'est atteint
+# qu'une fois le run autorisé (sinon la porte unique ci-dessus a forcé DRY_RUN).
+if [ "$SUPERVISE" = 1 ]; then
+  SUPERVISE_CMD=${NM_SUPERVISE_CMD:-}
+  if [ -z "$SUPERVISE_CMD" ]; then
+    _py=$(_nm_python) || { echo "Erreur : aucun interpréteur Python pour le superviseur." >&2; exit 1; }
+    SUPERVISE_CMD="$_py $HERE/run_supervise.py"
+  fi
+  if [ "$NO_DASHBOARD" = 1 ]; then
+    echo "Lancement du superviseur (quota + reprise, sans dashboard)…"
+    $SUPERVISE_CMD "$MILESTONE" --authorize --max-parallel "$MAX_PARALLEL"
+    exit $?
+  fi
+  echo "Lancement du superviseur en arrière-plan + dashboard live…"
+  $SUPERVISE_CMD "$MILESTONE" --authorize --max-parallel "$MAX_PARALLEL" \
+    > "$RUN_DIR/superviseur.log" 2>&1 &
+  SPID=$!
+  "$DASHBOARD_CMD" "$RUN_ID" || true
+  echo
+  echo "Dashboard fermé. Le superviseur tourne peut-être encore (PID $SPID)."
+  echo "Journal : $RUN_DIR/journal.ndjson"
+  echo "Sortie superviseur : $RUN_DIR/superviseur.log"
+  exit 0
 fi
 
 if [ "$NO_DASHBOARD" = 1 ]; then

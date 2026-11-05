@@ -28,13 +28,19 @@ cat > "$WORK/bin/dashboard" <<EOF
 echo "\$@" >> "$WORK/dashboard.log"
 exit 0
 EOF
-chmod +x "$WORK/bin/claude" "$WORK/bin/dashboard"
+cat > "$WORK/bin/supervise" <<EOF
+#!/usr/bin/env bash
+echo "\$@" >> "$WORK/supervise.log"
+exit 0
+EOF
+chmod +x "$WORK/bin/claude" "$WORK/bin/dashboard" "$WORK/bin/supervise"
 
 run_launch() {
-  : > "$WORK/claude.log"; : > "$WORK/dashboard.log"
+  : > "$WORK/claude.log"; : > "$WORK/dashboard.log"; : > "$WORK/supervise.log"
   NM_RUNS_ROOT="$WORK/runs" \
   NM_CLAUDE_CMD="$WORK/bin/claude" \
   NM_DASHBOARD_CMD="$WORK/bin/dashboard" \
+  NM_SUPERVISE_CMD="$WORK/bin/supervise" \
   NM_SKIP_TITLES=1 \
     bash "$LAUNCH" "$@" > "$WORK/out.txt" 2>&1
 }
@@ -94,6 +100,28 @@ grep -q -- '--dry-run' "$WORK/claude.log" && pass "dry-run + authorize: reste un
   || fail "dry-run + authorize: reste un plan"
 [ ! -s "$WORK/dashboard.log" ] && pass "dry-run + authorize: dashboard NON ouvert" \
   || fail "dry-run + authorize: dashboard NON ouvert"
+
+# --- --supervise (run autorisé) : lance le superviseur, pas l'orchestrateur ----
+rm -rf "$WORK/runs"
+run_launch --authorize --supervise --no-dashboard "Phase 0 — Fondations"
+grep -q 'Phase 0 — Fondations' "$WORK/supervise.log" && pass "supervise: superviseur appelé avec le jalon" \
+  || fail "supervise: superviseur appelé avec le jalon"
+grep -q -- '--authorize' "$WORK/supervise.log" && pass "supervise: --authorize transmis au superviseur" \
+  || fail "supervise: --authorize transmis au superviseur"
+grep -q -- '--max-parallel 2' "$WORK/supervise.log" && pass "supervise: --max-parallel transmis" \
+  || fail "supervise: --max-parallel transmis"
+[ ! -s "$WORK/claude.log" ] && pass "supervise: orchestrateur NON appelé directement" \
+  || fail "supervise: orchestrateur NON appelé directement"
+[ ! -s "$WORK/dashboard.log" ] && pass "supervise: dashboard NON ouvert (--no-dashboard)" \
+  || fail "supervise: dashboard NON ouvert (--no-dashboard)"
+
+# --- --supervise SANS --authorize : plan seul, superviseur NON lancé -----------
+rm -rf "$WORK/runs"
+run_launch --supervise --no-dashboard "Phase 0 — Fondations"
+[ ! -s "$WORK/supervise.log" ] && pass "supervise sans autorisation: superviseur NON lancé" \
+  || fail "supervise sans autorisation: superviseur NON lancé"
+grep -q -- '--dry-run' "$WORK/claude.log" && pass "supervise sans autorisation: plan via orchestrateur" \
+  || fail "supervise sans autorisation: plan via orchestrateur"
 
 # --- NM_RUNS_ROOT résolu et exporté vers l'orchestrateur (agents en worktree) --
 # Sans NM_RUNS_ROOT hérité : le lanceur doit résoudre la racine lui-même (dépôt

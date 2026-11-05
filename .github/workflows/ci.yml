@@ -91,6 +91,8 @@ jobs:
         run: python .github/scripts/tests/test_run_control.py
       - name: Tests du dashboard de run (run_dashboard.py)
         run: python .github/scripts/tests/test_run_dashboard.py
+      - name: Tests du superviseur de run (run_supervise.py — quota/reprise)
+        run: python .github/scripts/tests/test_run_supervise.py
       - name: Tests du lanceur de run (run-jalon.sh)
         run: bash .github/scripts/tests/run-jalon.test.sh
 

@@ -1,6 +1,6 @@
 ---
 description: Orchestre un run de jalon — lit les issues d'un milestone, en déduit l'ordre et les lots parallélisables, délègue aux agents dev puis QA, et rend compte. Merge piloté par CI verte, arrêt humain sur le critique.
-argument-hint: <titre exact du milestone> [--authorize] [--max-parallel N] [--dry-run]
+argument-hint: <titre exact du milestone> [--authorize] [--max-parallel N] [--max-lots N] [--dry-run]
 allowed-tools: Agent, Task, Bash, Read, Grep, Glob
 ---
 
@@ -17,6 +17,10 @@ coordonnant deux sous-agents : `dev-ticket` (développement) et `qa-ticket` (val
 
 - **1er argument** : le **titre exact** du milestone (ex. `Phase 0 — Fondations`). Obligatoire.
 - `--max-parallel N` : nombre max d'agents dev simultanés (défaut **2**).
+- `--max-lots N` : s'arrêter **proprement après N lots** traités (laisse les PR du dernier lot
+  suivre leur cours : QA + CI), puis rendre le compte rendu. Défaut : **illimité** (vide le jalon).
+  C'est le levier du **superviseur** (`scripts/run_supervise.py`, issue #49), qui te relance « un
+  lot par appel » (`--max-lots 1`) pour survivre à la fenêtre d'usage de cinq heures.
 - `--dry-run` : affiche le **plan** et s'arrête, sans lancer aucun agent ni créer de branche.
 - `--authorize` : **autorisation humaine groupée** (porte unique). Sa présence atteste qu'un humain
   a validé **tout** le run en amont : l'orchestrateur enchaîne alors les tickets en autonomie, y
@@ -160,7 +164,9 @@ AUTORISATION-RUN: <NM_RUN_ID> — validation humaine groupée accordée. Tickets
 
 4. **Boucle** jusqu'à ce que le jalon soit vidé, ou que seuls restent des tickets **réellement**
    bloqués (dépendance non résolue, ou QA FAIL non corrigeable). Il n'y a **plus** de point d'arrêt
-   humain en cours de run : l'unique validation a eu lieu à l'étape 3.0.
+   humain en cours de run : l'unique validation a eu lieu à l'étape 3.0. Avec **`--max-lots N`**,
+   arrête-toi **proprement dès N lots traités** (sans tuer d'agent en cours ni couper une PR de son
+   cycle QA/CI) et passe au compte rendu : le superviseur te rappellera pour le lot suivant.
 
 ### 4. Compte rendu de run
 
