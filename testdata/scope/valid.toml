@@ -1,0 +1,44 @@
+# Scope de test — engagement fictif (aucune donnée réelle, cf. testdata/README.md).
+# Voie B sans bloc [integrity] : chargement en mode v1 (empreinte SHA-256 seule).
+
+[engagement]
+client        = "ACME Corp"
+reference     = "PENTEST-2026-014"
+authorized_by = "DSI ACME — contrat signé 2026-01-05"
+operator      = "operateur@example.test"
+valid_from    = "2026-01-01T00:00:00Z"
+valid_until   = "2027-12-31T23:59:59Z"
+
+[targets]
+networks = ["192.168.10.0/24", "10.20.0.0/16"]
+hosts    = ["192.168.50.5"]
+
+[targets.exclusions]
+hosts = ["192.168.10.1", "10.20.0.254"]
+
+[constraints]
+max_rate_pps     = 200
+allowed_hours    = "08:00-18:00"
+tcp_connect_only = false
+
+# Capacités désactivées par défaut ; activation granulaire via `enabled`.
+[capabilities]
+recon = true
+
+[capabilities.exploitation]
+enabled            = true
+mode               = "manual"
+destructive_checks = false
+allowed_hosts      = ["192.168.10.25", "192.168.10.30"]
+max_actions        = 50
+
+[capabilities.cracking]
+enabled                  = true
+online_spray             = false
+max_attempts_per_account = 3
+
+[capabilities.emulation]
+enabled           = true
+attack_techniques = ["T1046", "T1021", "T1570"]
+profile           = "stealth"
+blue_team_contact = "soc@acme.example"

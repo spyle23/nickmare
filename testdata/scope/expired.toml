@@ -1,0 +1,16 @@
+# Scope de test expiré : structure valide mais fenêtre d'engagement révolue.
+# `nickmare scope validate` doit refuser clairement (code de sortie ≠ 0).
+
+[engagement]
+client        = "Old Corp"
+reference     = "PENTEST-2020-001"
+authorized_by = "DSI — mandat clos"
+operator      = "operateur@example.test"
+valid_from    = "2020-01-01T00:00:00Z"
+valid_until   = "2021-12-31T23:59:59Z"
+
+[targets]
+networks = ["192.168.0.0/24"]
+
+[capabilities]
+recon = true
