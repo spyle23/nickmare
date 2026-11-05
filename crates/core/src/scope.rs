@@ -357,7 +357,7 @@ impl Scope {
     /// ni la validité temporelle (voir [`Scope::temporal_status`]), pour rester
     /// reproductible et testable indépendamment de l'horloge et des clés.
     pub fn from_toml(input: &str) -> Result<Self, ScopeError> {
-        let parsed: Result<Scope, toml::de::Error> = toml::from_str(input);
+        let parsed: Result<Scope, basic_toml::Error> = basic_toml::from_str(input);
         let mut scope = match parsed {
             Ok(scope) => scope,
             Err(err) => return Err(ScopeError::Toml(err.to_string())),
@@ -671,7 +671,9 @@ max_actions = 50
         let scope = Scope::from_toml(BASE).unwrap();
         let fp = scope.fingerprint();
         assert_eq!(fp.len(), 64);
-        let hexa = fp.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase());
+        let hexa = fp
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase());
         assert!(hexa, "empreinte non hexadécimale minuscule : {fp}");
     }
 
@@ -779,7 +781,10 @@ valid_until = \"2027-01-01T00:00:00Z\"
     #[test]
     fn expiration_et_fenetre() {
         let scope = Scope::from_toml(BASE).unwrap();
-        assert_eq!(scope.temporal_status(at(2026, 6, 1, 12)), TemporalStatus::Valid);
+        assert_eq!(
+            scope.temporal_status(at(2026, 6, 1, 12)),
+            TemporalStatus::Valid
+        );
         assert_eq!(
             scope.temporal_status(at(2025, 1, 1, 0)),
             TemporalStatus::NotYetValid
@@ -919,8 +924,14 @@ valid_until = \"2027-01-01T00:00:00Z\"
 
     #[test]
     fn profil_scope_vers_modele() {
-        assert_eq!(AdversaryProfile::from(ScopeProfile::Stealth), AdversaryProfile::Stealth);
-        assert_eq!(AdversaryProfile::from(ScopeProfile::Noisy), AdversaryProfile::Noisy);
+        assert_eq!(
+            AdversaryProfile::from(ScopeProfile::Stealth),
+            AdversaryProfile::Stealth
+        );
+        assert_eq!(
+            AdversaryProfile::from(ScopeProfile::Noisy),
+            AdversaryProfile::Noisy
+        );
         assert_eq!(ScopeProfile::default(), ScopeProfile::Balanced);
     }
 }

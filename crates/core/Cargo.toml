@@ -12,7 +12,12 @@ chrono = { version = "0.4.38", features = ["serde"] }
 async-trait = "0.1.83"
 
 # Scope (issue #3) : désérialisation TOML, empreinte SHA-256 et signature ed25519.
-toml = "0.8"
+#
+# basic-toml (et non `toml`) : parseur TOML serde minimaliste, sans la pile
+# toml_edit → indexmap → hashbrown. hashbrown récent exige la feature Cargo
+# `edition2024` (rustc ≥ 1.85), incompatible avec la toolchain épinglée 1.83 et
+# l'absence de Cargo.lock. basic-toml ne dépend que de serde → arbre MSRV sûr.
+basic-toml = "0.1"
 sha2 = "0.10"
 # ed25519-dalek figé (=) : la toolchain est épinglée à 1.83 (rust-toolchain.toml)
 # et le dépôt n'a pas de Cargo.lock ; on fige la version de vérification de

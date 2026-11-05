@@ -56,7 +56,10 @@ fn run(args: &[String]) -> Result<String, String> {
 fn run_scope(args: &[String]) -> Result<String, String> {
     match args.first().map(String::as_str) {
         Some("validate") => run_scope_validate(&args[1..]),
-        Some(other) => Err(format!("sous-commande scope inconnue : {other}\n\n{}", usage())),
+        Some(other) => Err(format!(
+            "sous-commande scope inconnue : {other}\n\n{}",
+            usage()
+        )),
         None => Err(format!("sous-commande scope manquante\n\n{}", usage())),
     }
 }
@@ -76,9 +79,9 @@ fn run_scope_validate(args: &[String]) -> Result<String, String> {
                 index += 2;
             }
             "--trusted-key-file" => {
-                let file = args.get(index + 1).ok_or_else(|| {
-                    "option --trusted-key-file : chemin manquant".to_string()
-                })?;
+                let file = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --trusted-key-file : chemin manquant".to_string())?;
                 let content = std::fs::read_to_string(file)
                     .map_err(|err| format!("lecture de la clé de confiance {file} : {err}"))?;
                 trusted_key = Some(content.trim().to_string());
@@ -139,7 +142,10 @@ fn summarize(scope: &Scope, trusted_key: Option<&str>) -> String {
     lines.push("Scope VALIDE".to_string());
     lines.push(format!("  Client        : {}", scope.engagement.client));
     lines.push(format!("  Référence     : {}", scope.engagement.reference));
-    lines.push(format!("  Autorisé par  : {}", scope.engagement.authorized_by));
+    lines.push(format!(
+        "  Autorisé par  : {}",
+        scope.engagement.authorized_by
+    ));
     lines.push(format!("  Opérateur     : {}", scope.engagement.operator));
     lines.push(format!(
         "  Fenêtre       : {} → {}",
