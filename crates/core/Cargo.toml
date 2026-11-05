@@ -10,6 +10,10 @@ serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 chrono = { version = "0.4.38", features = ["serde"] }
 async-trait = "0.1.83"
+# Hachage du journal d'audit chaîné (issue #5, §3.3) : SHA-256 pour le chaînage
+# d'intégrité. Brique cryptographique éprouvée (RustCrypto) plutôt qu'une
+# implémentation maison — la ligne 0.10 reste compatible MSRV 1.83.
+sha2 = "0.10.8"
 
 # tokio figé (=) : les versions récentes relèvent leur MSRV au-dessus de la
 # toolchain épinglée (rust-toolchain.toml = 1.83). 1.40 reste compatible. En
