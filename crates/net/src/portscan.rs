@@ -323,7 +323,10 @@ impl<'p, P: NetworkProvider + ?Sized> ProviderProbe<'p, P> {
 impl<P: NetworkProvider + ?Sized> PortProbe for ProviderProbe<'_, P> {
     async fn scan_port(&self, target: IpAddr, port: u16) -> Port {
         match self.provider.scan_ports(target, &[port]).await {
-            Ok(ports) => ports.into_iter().next().unwrap_or_else(|| filtered(port, Proto::Tcp)),
+            Ok(ports) => ports
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| filtered(port, Proto::Tcp)),
             // Échec réseau : on ne tranche pas « ouvert/fermé » → filtré (§12).
             Err(_) => filtered(port, Proto::Tcp),
         }
@@ -876,7 +879,11 @@ recon = true
             Port {
                 number: port,
                 proto: Proto::Tcp,
-                state: self.states.get(&port).copied().unwrap_or(PortState::Filtered),
+                state: self
+                    .states
+                    .get(&port)
+                    .copied()
+                    .unwrap_or(PortState::Filtered),
                 service: None,
             }
         }
@@ -897,10 +904,16 @@ recon = true
     #[test]
     fn classification_udp_couvre_les_trois_etats() {
         assert_eq!(classify_udp(UdpResponse::Data), PortState::Open);
-        assert_eq!(classify_udp(UdpResponse::PortUnreachable), PortState::Closed);
+        assert_eq!(
+            classify_udp(UdpResponse::PortUnreachable),
+            PortState::Closed
+        );
         // open|filtered et autre injoignable : prudemment filtrés (fail-safe).
         assert_eq!(classify_udp(UdpResponse::NoResponse), PortState::Filtered);
-        assert_eq!(classify_udp(UdpResponse::OtherUnreachable), PortState::Filtered);
+        assert_eq!(
+            classify_udp(UdpResponse::OtherUnreachable),
+            PortState::Filtered
+        );
     }
 
     // --- Choix de technique (tcp_connect_only, privilège) ---------------------
@@ -945,8 +958,7 @@ recon = true
         assert_eq!(&segment[2..4], &443u16.to_be_bytes()); // port destination
         assert_eq!(segment[12] >> 4, 5); // offset de données = 5 mots
         assert_eq!(segment[13], TCP_SYN); // seul SYN posé
-        // Recalculée sur un segment dont la somme est déjà posée → 0 (RFC 1071).
-        assert_eq!(tcp_checksum(src, dst, &segment), 0);
+        assert_eq!(tcp_checksum(src, dst, &segment), 0); // somme déjà posée → 0 (RFC 1071)
     }
 
     #[test]
@@ -978,9 +990,8 @@ recon = true
     #[test]
     fn analyse_tcp_defensive_sans_panique() {
         assert!(parse_ipv4_tcp_reply(&[]).is_none());
-        assert!(parse_ipv4_tcp_reply(&[0x45]).is_none()); // tronqué
-        // Protocole ≠ TCP (ici 17 = UDP) → refusé.
-        let mut udp = vec![0x45, 0, 0, 0, 0, 0, 0, 0, 0, 17];
+        assert!(parse_ipv4_tcp_reply(&[0x45]).is_none()); // paquet tronqué
+        let mut udp = vec![0x45, 0, 0, 0, 0, 0, 0, 0, 0, 17]; // octet 9 = 17 → UDP, pas TCP
         udp.extend_from_slice(&[0u8; 30]);
         assert!(parse_ipv4_tcp_reply(&udp).is_none());
     }

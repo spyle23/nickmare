@@ -975,7 +975,11 @@ fn summarize_scan(host: std::net::IpAddr, network: &str, udp: bool, ports: &[Por
             PortState::Filtered => filtered += 1,
         }
         let state = port_state_label(port.state);
-        lines.push(format!("  {}/{}  {state}", port.number, proto_label(port.proto)));
+        lines.push(format!(
+            "  {}/{}  {state}",
+            port.number,
+            proto_label(port.proto)
+        ));
     }
     let total = ports.len();
     lines.push(format!(
