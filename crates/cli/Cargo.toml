@@ -20,3 +20,9 @@ chrono = "0.4.38"
 # Désérialisation de la carte réseau (NetworkMap) pour `nickmare map <carte.json>`.
 # Même version que `core` (MSRV 1.83, sans Cargo.lock).
 serde_json = "1.0.128"
+# Runtime pour piloter le scan de ports asynchrone (`nickmare scan ports`, #12) :
+# on construit un petit runtime `current_thread` et on `block_on` l'orchestration
+# `net::portscan::scan_gated`. tokio figé (=1.40.0) comme `core`/`net` : versions
+# récentes > MSRV de la toolchain épinglée (1.83). On n'active que `rt`/`time`
+# (sleep de cadence + spawn_blocking des sondes), jamais la feature `net`.
+tokio = { version = "=1.40.0", features = ["rt", "time", "macros"] }

@@ -11,15 +11,18 @@
 //! grandira ; ici le dispatch reste volontairement minimal.
 
 use std::process::ExitCode;
+use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use nickmare_core::audit::AuditLog;
-use nickmare_core::gate::Decision;
+use nickmare_core::gate::{Decision, Request};
 use nickmare_core::lab::LabSession;
-use nickmare_core::model::NetworkMap;
+use nickmare_core::model::{NetworkMap, Port, PortState, Proto};
 use nickmare_core::scope::{Capability, Scope, TemporalStatus};
 use nickmare_core::target::TargetSelection;
 use nickmare_net::map::render_map;
+use nickmare_net::portscan::{scan_gated, ProviderProbe, ScanReport, UdpProbe};
+use nickmare_net::provider::{RealNetworkProvider, Timeouts};
 
 /// Durée par défaut de la fenêtre d'un lab (heures) si `--hours` est absent.
 const DEFAULT_LAB_HOURS: i64 = 12;
@@ -27,6 +30,9 @@ const DEFAULT_LAB_HOURS: i64 = 12;
 /// Durée par défaut de la fenêtre d'une sélection voie A (heures) si `--hours`
 /// est absent.
 const DEFAULT_SELECT_HOURS: i64 = 12;
+
+/// Délai par défaut (ms) d'une sonde de scan si `--timeout-ms` est absent.
+const DEFAULT_SCAN_TIMEOUT_MS: u64 = 1000;
 
 /// Bannière de version, dérivée des métadonnées du paquet.
 fn banniere() -> String {
@@ -43,6 +49,9 @@ fn usage() -> String {
         "                       [--audit <chemin>]",
         "  nickmare lab start <cidr> [<cidr>...] [--operator <id>] [--hours <n>]",
         "                      [--confirm-non-isolated] [--audit <chemin>]",
+        "  nickmare scan ports <ip> --network <cidr> --attest [--ports <p,p,...>] [--udp]",
+        "                      [--rate <pps>] [--operator <id>] [--hours <n>]",
+        "                      [--timeout-ms <n>] [--audit <chemin>]",
         "  nickmare map <carte.json>",
         "",
         "scope validate : valide un fichier de scope (voie B) — résumé + empreinte SHA-256,",
@@ -53,6 +62,9 @@ fn usage() -> String {
         "                 audit si l'hôte est hors du périmètre (n'élargit jamais le scope).",
         "lab start      : établit un périmètre de laboratoire (voie C) sur un ou plusieurs",
         "                 sous-réseaux ; attestation unique, N1–N4 débloqués, mode = \"lab\".",
+        "scan ports     : scanne les ports d'un hôte du réseau attesté (recon active N1) —",
+        "                 passe par le gate (refus hors périmètre + audit) ; TCP connect sans",
+        "                 privilège par défaut, --udp pour l'UDP basique, débit plafonné --rate.",
         "map            : affiche la carte réseau (NetworkMap) en texte — hôtes, rôles,",
         "                 services, hôtes compromis et chemins de pivot (US-B3).",
     ];
@@ -80,6 +92,7 @@ fn run(args: &[String]) -> Result<String, String> {
         Some("scope") => run_scope(&args[1..]),
         Some("target") => run_target(&args[1..]),
         Some("lab") => run_lab(&args[1..]),
+        Some("scan") => run_scan(&args[1..]),
         Some("map") => run_map(&args[1..]),
         Some("--version" | "-V") => Ok(format!("{}\n", banniere())),
         Some("--help" | "-h") | None => Ok(usage()),
@@ -693,6 +706,290 @@ fn summarize_lab(session: &LabSession) -> String {
     out
 }
 
+// --- Scan de ports (`scan ports`) -------------------------------------------
+
+fn run_scan(args: &[String]) -> Result<String, String> {
+    match args.first().map(String::as_str) {
+        Some("ports") => run_scan_ports(&args[1..]),
+        Some(other) => Err(format!(
+            "sous-commande scan inconnue : {other}\n\n{}",
+            usage()
+        )),
+        None => Err(format!("sous-commande scan manquante\n\n{}", usage())),
+    }
+}
+
+/// Options analysées de `scan ports`.
+struct ScanOpts {
+    host: Option<String>,
+    network: Option<String>,
+    attested: bool,
+    ports: Vec<u16>,
+    udp: bool,
+    rate_pps: u32,
+    operator: Option<String>,
+    hours: i64,
+    timeout_ms: u64,
+    audit_path: Option<String>,
+}
+
+impl Default for ScanOpts {
+    fn default() -> Self {
+        Self {
+            host: None,
+            network: None,
+            attested: false,
+            ports: Vec::new(),
+            udp: false,
+            rate_pps: 0,
+            operator: None,
+            hours: DEFAULT_SELECT_HOURS,
+            timeout_ms: DEFAULT_SCAN_TIMEOUT_MS,
+            audit_path: None,
+        }
+    }
+}
+
+fn run_scan_ports(args: &[String]) -> Result<String, String> {
+    let mut opts = ScanOpts::default();
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--network" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --network : <cidr> attendu".to_string())?;
+                opts.network = Some(value.clone());
+                index += 2;
+            }
+            "--ports" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --ports : liste de ports attendue".to_string())?;
+                opts.ports = parse_ports(value)?;
+                index += 2;
+            }
+            "--rate" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --rate : valeur manquante".to_string())?;
+                opts.rate_pps = value
+                    .parse::<u32>()
+                    .map_err(|_| format!("option --rate : entier attendu, reçu {value:?}"))?;
+                index += 2;
+            }
+            "--operator" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --operator : identité manquante".to_string())?;
+                opts.operator = Some(value.clone());
+                index += 2;
+            }
+            "--hours" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --hours : valeur manquante".to_string())?;
+                opts.hours = value
+                    .parse::<i64>()
+                    .map_err(|_| format!("option --hours : entier attendu, reçu {value:?}"))?;
+                if opts.hours <= 0 {
+                    return Err("option --hours : durée strictement positive attendue".to_string());
+                }
+                index += 2;
+            }
+            "--timeout-ms" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --timeout-ms : valeur manquante".to_string())?;
+                opts.timeout_ms = value
+                    .parse::<u64>()
+                    .map_err(|_| format!("option --timeout-ms : entier attendu, reçu {value:?}"))?;
+                index += 2;
+            }
+            "--audit" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --audit : chemin manquant".to_string())?;
+                opts.audit_path = Some(value.clone());
+                index += 2;
+            }
+            "--attest" => {
+                opts.attested = true;
+                index += 1;
+            }
+            "--udp" => {
+                opts.udp = true;
+                index += 1;
+            }
+            other if other.starts_with('-') => {
+                return Err(format!("option inconnue : {other}\n\n{}", usage()));
+            }
+            positional => {
+                if opts.host.is_some() {
+                    return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+                }
+                opts.host = Some(positional.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    let Some(host) = opts.host else {
+        return Err(format!("hôte à scanner manquant (<ip>)\n\n{}", usage()));
+    };
+    let Some(network) = opts.network else {
+        return Err(format!(
+            "réseau attesté manquant : précisez --network <cidr>\n\n{}",
+            usage()
+        ));
+    };
+    let operator = opts.operator.unwrap_or_else(default_operator);
+    scan_ports_cmd(
+        host,
+        network,
+        operator,
+        opts.attested,
+        &opts.ports,
+        opts.udp,
+        opts.rate_pps,
+        opts.hours,
+        opts.timeout_ms,
+        opts.audit_path.as_deref(),
+        Utc::now(),
+    )
+}
+
+/// Analyse une liste de ports « 22,80,443 » en `Vec<u16>` (vide = ports courants).
+fn parse_ports(raw: &str) -> Result<Vec<u16>, String> {
+    let mut ports = Vec::new();
+    for token in raw.split(',') {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        let port = token
+            .parse::<u16>()
+            .map_err(|_| format!("port invalide : {token:?} (attendu 0–65535)"))?;
+        ports.push(port);
+    }
+    Ok(ports)
+}
+
+/// Scanne les ports de `host` **dans le réseau attesté**, après vérification par
+/// le gate (recon active N1, §3.2). Rétablit le périmètre voie A (attestation),
+/// pilote `net::portscan::scan_gated` sur un petit runtime, et journalise l'issue
+/// (succès `recon.active` ou refus `blocked_*`). `now` est injecté pour une
+/// fenêtre déterministe en test. Fail-safe : sans attestation, rien n'est scanné.
+#[allow(clippy::too_many_arguments)]
+fn scan_ports_cmd(
+    host: String,
+    network: String,
+    operator: String,
+    attested: bool,
+    ports: &[u16],
+    udp: bool,
+    rate_pps: u32,
+    hours: i64,
+    timeout_ms: u64,
+    audit_path: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<String, String> {
+    let host_ip = host
+        .parse()
+        .map_err(|_| format!("adresse d'hôte invalide : {host}"))?;
+    let valid_until = now + TimeDelta::hours(hours);
+    let selection = TargetSelection::select(network, operator, attested, now, valid_until)
+        .map_err(|err| format!("scan refusé : {err}"))?;
+
+    // Ré-extrait réseau/opérateur du scope établi (ils ont été consommés ci-dessus).
+    let network = selection.network().to_string();
+    let operator = selection.scope().engagement.operator.clone();
+    let att = selection.attestation().clone();
+    let req = Request::new(now, &operator).with_attestation(&att);
+    let mut gate = selection.gate();
+    let timeout = Duration::from_millis(timeout_ms.max(1));
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .map_err(|err| format!("initialisation du runtime de scan : {err}"))?;
+
+    // Deux techniques sans privilège : TCP connect (réutilise le provider réel) ou
+    // UDP basique. Le SYN brut reste réservé au labo (hors CLI/CI).
+    let report = if udp {
+        let probe = UdpProbe::new(timeout);
+        let fut = scan_gated(&mut gate, &req, &operator, &probe, host_ip, ports, rate_pps);
+        runtime.block_on(fut)
+    } else {
+        let provider = RealNetworkProvider::new().with_timeouts(Timeouts::new(timeout, timeout));
+        let probe = ProviderProbe::new(&provider);
+        let fut = scan_gated(&mut gate, &req, &operator, &probe, host_ip, ports, rate_pps);
+        runtime.block_on(fut)
+    };
+
+    // Traçabilité : l'issue du scan est journalisée dans tous les cas (succès ou
+    // refus hors périmètre), dans un journal chaîné.
+    if let Some(path) = audit_path {
+        let mut log = AuditLog::open(path)
+            .map_err(|err| format!("ouverture du journal d'audit {path} : {err}"))?;
+        log.append(report.record().clone())
+            .map_err(|err| format!("écriture du journal d'audit {path} : {err}"))?;
+    }
+
+    match report {
+        ScanReport::Allowed { ports, .. } => Ok(summarize_scan(host_ip, &network, udp, &ports)),
+        ScanReport::Refused { reason, .. } => Err(format!(
+            "scan refusé : hôte {host_ip} hors du périmètre attesté {network} ({reason})"
+        )),
+    }
+}
+
+/// Libellé français d'un état de port.
+fn port_state_label(state: PortState) -> &'static str {
+    match state {
+        PortState::Open => "ouvert",
+        PortState::Closed => "fermé",
+        PortState::Filtered => "filtré",
+    }
+}
+
+/// Libellé d'un protocole de port.
+fn proto_label(proto: Proto) -> &'static str {
+    match proto {
+        Proto::Tcp => "tcp",
+        Proto::Udp => "udp",
+    }
+}
+
+/// Résumé lisible d'un scan autorisé : technique, liste des ports + états, bilan.
+fn summarize_scan(host: std::net::IpAddr, network: &str, udp: bool, ports: &[Port]) -> String {
+    let technique = if udp { "udp" } else { "tcp_connect" };
+    let mut lines: Vec<String> = Vec::new();
+    lines.push(format!("Scan de ports — {host} (réseau attesté {network})"));
+    lines.push(format!("  Technique  : {technique}"));
+    let (mut open, mut closed, mut filtered) = (0u32, 0u32, 0u32);
+    for port in ports {
+        match port.state {
+            PortState::Open => open += 1,
+            PortState::Closed => closed += 1,
+            PortState::Filtered => filtered += 1,
+        }
+        let state = port_state_label(port.state);
+        lines.push(format!(
+            "  {}/{}  {state}",
+            port.number,
+            proto_label(port.proto)
+        ));
+    }
+    let total = ports.len();
+    lines.push(format!(
+        "Bilan : {open} ouvert(s), {closed} fermé(s), {filtered} filtré(s) sur {total} port(s)."
+    ));
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
+}
+
 // --- Vue carte textuelle (`map`) --------------------------------------------
 
 fn run_map(args: &[String]) -> Result<String, String> {
@@ -1101,6 +1398,138 @@ mod tests {
     fn target_select_via_run_sans_reseau_erreur() {
         let err = run_target(&["select".to_string(), "--attest".to_string()]).unwrap_err();
         assert!(err.contains("réseau à sélectionner manquant"), "{err}");
+    }
+
+    // --- Scan de ports : `scan ports` ---------------------------------------
+
+    #[test]
+    fn parse_ports_liste_et_vide() {
+        assert_eq!(parse_ports("22,80,443").unwrap(), vec![22, 80, 443]);
+        // Espaces et jetons vides tolérés ; liste vide → ports courants (vec vide).
+        assert_eq!(parse_ports(" 22 , 443 ").unwrap(), vec![22, 443]);
+        assert!(parse_ports("").unwrap().is_empty());
+        // Port hors plage → refus clair.
+        assert!(parse_ports("99999").is_err());
+        assert!(parse_ports("ssh").is_err());
+    }
+
+    #[test]
+    fn negatif_scan_hors_reseau_atteste_refuse_et_journalise() {
+        // §10.4 / US-B2 : scanner un hôte HORS du réseau attesté → refus + audit
+        // `blocked_target`, sans la moindre I/O réseau (le gate refuse en amont).
+        let path = tmp_audit("scan-deny");
+        let path_str = path.to_str().unwrap();
+        let err = scan_ports_cmd(
+            "10.0.0.5".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            &[22, 80],
+            false,
+            0,
+            12,
+            500,
+            Some(path_str),
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("hors du périmètre attesté"), "{err}");
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("blocked_target"), "{content}");
+        assert!(content.contains("\"result\":\"blocked\""), "{content}");
+        assert!(nickmare_core::audit::verify_file(&path).is_ok());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn negatif_scan_sans_attestation_refuse() {
+        // Sans --attest : aucun périmètre établi, donc rien n'est scanné.
+        let err = scan_ports_cmd(
+            "192.168.56.10".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            false,
+            &[22],
+            false,
+            0,
+            12,
+            500,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("scan refusé"), "{err}");
+        assert!(err.contains("attestation"), "{err}");
+    }
+
+    #[test]
+    fn scan_ports_ip_invalide_erreur() {
+        let err = scan_ports_cmd(
+            "pas-une-ip".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            &[22],
+            false,
+            0,
+            12,
+            500,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("adresse d'hôte invalide"), "{err}");
+    }
+
+    #[test]
+    fn scan_ports_loopback_in_scope_classe_un_port_ouvert() {
+        // Scan réel mais en loopback, sans privilège (CI-safe) : un port lié et
+        // écouté ressort « ouvert », et le scan passe par le gate (in-scope).
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let out = scan_ports_cmd(
+            "127.0.0.1".to_string(),
+            "127.0.0.1/32".to_string(),
+            "operateur".to_string(),
+            true,
+            &[port],
+            false,
+            0,
+            12,
+            500,
+            None,
+            now(),
+        )
+        .unwrap();
+        assert!(out.contains("Scan de ports — 127.0.0.1"), "{out}");
+        assert!(out.contains("tcp_connect"), "{out}");
+        assert!(out.contains(&format!("{port}/tcp  ouvert")), "{out}");
+        assert!(out.contains("1 ouvert(s)"), "{out}");
+    }
+
+    #[test]
+    fn dispatch_scan_sans_sous_commande_erreur() {
+        let err = run(&["scan".to_string()]).unwrap_err();
+        assert!(err.contains("sous-commande scan manquante"), "{err}");
+    }
+
+    #[test]
+    fn dispatch_scan_sous_commande_inconnue_erreur() {
+        let err = run(&["scan".to_string(), "bidon".to_string()]).unwrap_err();
+        assert!(err.contains("sous-commande scan inconnue"), "{err}");
+    }
+
+    #[test]
+    fn scan_ports_sans_hote_erreur() {
+        let err = run_scan(&["ports".to_string()]).unwrap_err();
+        assert!(err.contains("hôte à scanner manquant"), "{err}");
+    }
+
+    #[test]
+    fn scan_ports_sans_reseau_erreur() {
+        let err = run_scan(&["ports".to_string(), "192.168.56.10".to_string()]).unwrap_err();
+        assert!(err.contains("réseau attesté manquant"), "{err}");
     }
 
     // --- Vue carte textuelle : `map` ----------------------------------------
