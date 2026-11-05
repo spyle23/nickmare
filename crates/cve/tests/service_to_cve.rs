@@ -63,5 +63,7 @@ fn banniere_nginx_identifiee_puis_correlee() {
     assert_eq!(service.product.as_deref(), Some("nginx"));
     assert_eq!(service.version.as_deref(), Some("1.18.0"));
     let findings = correlate_service(ip("192.168.56.10"), Some(80), &service, &db());
-    assert!(findings.iter().any(|f| f.cve.as_deref() == Some("CVE-2021-23017")));
+    assert!(findings
+        .iter()
+        .any(|f| f.cve.as_deref() == Some("CVE-2021-23017")));
 }

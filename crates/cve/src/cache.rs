@@ -99,7 +99,10 @@ mod tests {
         assert!(!db.is_empty());
         let svc = service("ssh", "OpenSSH", "9.1");
         let findings = correlate_service(ip("192.168.56.10"), Some(22), &svc, &db);
-        assert!(!findings.is_empty(), "le cache local doit suffire à corréler");
+        assert!(
+            !findings.is_empty(),
+            "le cache local doit suffire à corréler"
+        );
     }
 
     #[test]
@@ -149,7 +152,9 @@ mod tests {
     async fn refresh_accepte_un_client_en_objet_de_trait() {
         // Prouve l'injectabilité en objet de trait (comme MockNetworkProvider).
         let client: Box<dyn NvdClient> = Box::new(StubNvdClient::new(FEED));
-        let db = refresh(client.as_ref(), &FeedQuery::default()).await.unwrap();
+        let db = refresh(client.as_ref(), &FeedQuery::default())
+            .await
+            .unwrap();
         assert!(!db.is_empty());
     }
 }

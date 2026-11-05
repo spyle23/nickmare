@@ -100,7 +100,9 @@ pub struct OfflineNvdClient;
 #[async_trait]
 impl NvdClient for OfflineNvdClient {
     async fn fetch_feed(&self, _query: &FeedQuery) -> CveResult<String> {
-        Err(crate::error::CveError::Network("aucun réseau disponible".to_string()))
+        Err(crate::error::CveError::Network(
+            "aucun réseau disponible".to_string(),
+        ))
     }
 }
 

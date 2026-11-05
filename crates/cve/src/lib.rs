@@ -48,7 +48,7 @@ pub use cache::{load_from_path, load_from_str, load_or_empty, refresh, save_to_p
 pub use client::{ApiKey, FeedQuery, NvdClient, OfflineNvdClient, StubNvdClient};
 pub use correlate::{correlate_host, correlate_service};
 pub use error::{CveError, CveResult};
-pub use model::{AffectedProduct, Cvss, CveDatabase, CveRecord};
+pub use model::{AffectedProduct, CveDatabase, CveRecord, Cvss};
 pub use nvd::parse_feed;
 pub use version::{matches_range, Version, VersionRange};
 

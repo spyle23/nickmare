@@ -198,8 +198,10 @@ mod tests {
         let near = |a: f32, b: f32| (a - b).abs() < 1e-6;
         assert!(near(Cvss::new(42.0).base_score, 10.0));
         assert!(near(Cvss::new(-5.0).base_score, 0.0));
+        // Score non fini (NaN comme ±inf) → neutralisé à 0.0 (cf. doc de `new`).
         assert!(near(Cvss::new(f32::NAN).base_score, 0.0));
-        assert!(near(Cvss::new(f32::INFINITY).base_score, 10.0));
+        assert!(near(Cvss::new(f32::INFINITY).base_score, 0.0));
+        assert!(near(Cvss::new(f32::NEG_INFINITY).base_score, 0.0));
         // La gravité reste cohérente même si le champ a été trafiqué.
         let mut cvss = Cvss::new(9.0);
         cvss.base_score = f32::NAN;

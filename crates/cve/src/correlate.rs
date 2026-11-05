@@ -214,7 +214,9 @@ mod tests {
         let svc = service("ssh", Some("OpenSSH"), Some("9.6p1"));
         let findings = correlate_service(ip("192.168.56.10"), Some(22), &svc, &db());
         assert!(
-            findings.iter().all(|f| f.cve.as_deref() != Some("CVE-2023-38408")),
+            findings
+                .iter()
+                .all(|f| f.cve.as_deref() != Some("CVE-2023-38408")),
             "une version corrigée ne doit pas être signalée"
         );
     }
@@ -261,7 +263,9 @@ mod tests {
         // Une autre version du même produit ne matche pas la CVE exacte.
         let safe = service("ftp", Some("vsFTPd"), Some("3.0.5"));
         let findings = correlate_service(ip("10.0.0.1"), Some(21), &safe, &db);
-        assert!(findings.iter().all(|f| f.cve.as_deref() != Some("CVE-2011-2523")));
+        assert!(findings
+            .iter()
+            .all(|f| f.cve.as_deref() != Some("CVE-2011-2523")));
     }
 
     #[test]

@@ -13,7 +13,7 @@
 
 use serde::Deserialize;
 
-use crate::model::{AffectedProduct, Cvss, CveDatabase, CveRecord};
+use crate::model::{AffectedProduct, CveDatabase, CveRecord, Cvss};
 use crate::version::VersionRange;
 
 // --- Miroir *lâche* du JSON NVD (tout optionnel, rien d'obligatoire) --------
