@@ -1,0 +1,57 @@
+{
+  "hosts_by_network": {
+    "192.168.56.0/24": [
+      {
+        "ip": "192.168.56.10",
+        "mac": null,
+        "hostname": "srv.lab",
+        "os_guess": "Linux",
+        "ports": [],
+        "role": "Server",
+        "compromised": false,
+        "first_seen": "2026-06-01T12:00:00Z"
+      }
+    ]
+  },
+  "ports_by_host": {
+    "192.168.56.10": [
+      { "number": 21, "proto": "Tcp", "state": "Open", "service": null },
+      { "number": 22, "proto": "Tcp", "state": "Open", "service": null },
+      { "number": 23, "proto": "Tcp", "state": "Open", "service": null },
+      { "number": 80, "proto": "Tcp", "state": "Open", "service": null },
+      { "number": 3389, "proto": "Tcp", "state": "Closed", "service": null }
+    ]
+  },
+  "banners": [
+    {
+      "host": "192.168.56.10",
+      "port": 22,
+      "service": {
+        "name": "ssh",
+        "product": null,
+        "version": null,
+        "banner": "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu0.1"
+      }
+    },
+    {
+      "host": "192.168.56.10",
+      "port": 80,
+      "service": {
+        "name": "http",
+        "product": null,
+        "version": null,
+        "banner": "HTTP/1.1 200 OK\r\nServer: nginx/1.24.0\r\nContent-Type: text/html\r\n\r\n"
+      }
+    },
+    {
+      "host": "192.168.56.10",
+      "port": 21,
+      "service": {
+        "name": "ftp",
+        "product": null,
+        "version": null,
+        "banner": "220 (vsFTPd 3.0.5)"
+      }
+    }
+  ]
+}
