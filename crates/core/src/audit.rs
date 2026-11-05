@@ -175,7 +175,10 @@ impl std::fmt::Display for AuditError {
                 write!(f, "ligne {line} illisible : {detail}")
             }
             AuditError::HashMismatch { line } => {
-                write!(f, "ligne {line} : hash recalculé != hash stocké (altération)")
+                write!(
+                    f,
+                    "ligne {line} : hash recalculé != hash stocké (altération)"
+                )
             }
             AuditError::BrokenChain { line } => {
                 write!(f, "ligne {line} : chaîne rompue (prev_hash incohérent)")
@@ -326,7 +329,10 @@ pub fn verify_entries(entries: &[AuditEntry]) -> Result<(), AuditError> {
 
 /// Construit une erreur `MalformedLine` à partir d'une erreur affichable.
 fn malformed(line: usize, e: impl std::fmt::Display) -> AuditError {
-    AuditError::MalformedLine { line, detail: e.to_string() }
+    AuditError::MalformedLine {
+        line,
+        detail: e.to_string(),
+    }
 }
 
 /// Ouvre le fichier en append + création, avec permissions restreintes sur Unix
@@ -399,13 +405,25 @@ mod tests {
     /// validation d'exploit (N2), une technique d'émulation furtive (N4).
     fn seed_log(path: &Path) -> Vec<AuditEntry> {
         let mut log = AuditLog::open(path).unwrap();
-        let e1 = put(&mut log, rec("target.attest", "ok", CapabilityLevel::Recon), 1_700_000_000);
+        let e1 = put(
+            &mut log,
+            rec("target.attest", "ok", CapabilityLevel::Recon),
+            1_700_000_000,
+        );
         let e2 = put(
             &mut log,
-            rec("exploit.validate", "vulnerable", CapabilityLevel::Exploitation),
+            rec(
+                "exploit.validate",
+                "vulnerable",
+                CapabilityLevel::Exploitation,
+            ),
             1_700_000_060,
         );
-        let mut r3 = rec("emulation.T1021", "not-detected", CapabilityLevel::Emulation);
+        let mut r3 = rec(
+            "emulation.T1021",
+            "not-detected",
+            CapabilityLevel::Emulation,
+        );
         r3 = r3.in_lab().with_profile(AdversaryProfile::Stealth);
         let e3 = put(&mut log, r3, 1_700_000_120);
         vec![e1, e2, e3]
@@ -494,7 +512,10 @@ mod tests {
         // Un attaquant réécrit le résultat d'une action sans toucher au hash.
         let mut tampered = entries;
         tampered[1].result = "ok".to_string(); // était "vulnerable"
-        assert_eq!(verify_entries(&tampered), Err(AuditError::HashMismatch { line: 2 }));
+        assert_eq!(
+            verify_entries(&tampered),
+            Err(AuditError::HashMismatch { line: 2 })
+        );
     }
 
     #[test]
@@ -505,7 +526,10 @@ mod tests {
 
         // On retire la 2e entrée : la 3e pointe désormais dans le vide.
         let tampered = vec![entries[0].clone(), entries[2].clone()];
-        assert_eq!(verify_entries(&tampered), Err(AuditError::BrokenChain { line: 2 }));
+        assert_eq!(
+            verify_entries(&tampered),
+            Err(AuditError::BrokenChain { line: 2 })
+        );
     }
 
     #[test]
@@ -532,8 +556,16 @@ mod tests {
 
         // L'entrée forgée passe le test de hash, mais la ligne suivante
         // (l'ancienne 2e) a un prev_hash qui ne pointe plus sur elle.
-        let tampered = vec![entries[0].clone(), forged, entries[1].clone(), entries[2].clone()];
-        assert_eq!(verify_entries(&tampered), Err(AuditError::BrokenChain { line: 3 }));
+        let tampered = vec![
+            entries[0].clone(),
+            forged,
+            entries[1].clone(),
+            entries[2].clone(),
+        ];
+        assert_eq!(
+            verify_entries(&tampered),
+            Err(AuditError::BrokenChain { line: 3 })
+        );
     }
 
     #[test]
