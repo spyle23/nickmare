@@ -27,6 +27,15 @@ basic-toml = "0.1"
 # et le dépôt n'a pas de Cargo.lock ; on fige la version de vérification de
 # signature à un arbre connu compatible 1.83 pour un build reproductible.
 ed25519-dalek = "=2.1.1"
+# Épinglage de dépendances TRANSITIVES d'ed25519-dalek. Sans Cargo.lock, cargo
+# résout chaque dépendance (même optionnelle, non compilée) à sa dernière
+# version compatible et en parse le manifeste : base64ct ≥ 1.8 et zeroize ≥ 1.9
+# sont passés à `edition2024` (rust-version 1.85), que cargo 1.83 ne sait pas
+# parser (« feature `edition2024` is required »). On fige la dernière ligne
+# restée en edition 2021 : base64ct 1.7.x (MSRV 1.81) et zeroize 1.8.x (MSRV
+# 1.60), toutes deux dans l'intervalle semver requis par la pile ed25519.
+base64ct = "=1.7.3"
+zeroize = "=1.8.2"
 
 # tokio figé (=) : les versions récentes relèvent leur MSRV au-dessus de la
 # toolchain épinglée (rust-toolchain.toml = 1.83). 1.40 reste compatible. En
