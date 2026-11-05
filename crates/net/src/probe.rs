@@ -121,6 +121,12 @@ mod tests {
         assert_eq!(emitter.kind(), "tcp_connect_only");
     }
 
+    // Restreint aux plateformes où un port fermé de loopback refuse par RST de
+    // façon déterministe (Unix). Sous Windows, un tel port peut au contraire faire
+    // expirer la connexion (SYN silencieusement rejeté) : le repli TCP y verrait
+    // l'hôte « timeout » et non « vivant ». Ce comportement OS-dépendant n'invalide
+    // pas la logique (refus ⇒ hôte vivant), vérifiée par ailleurs.
+    #[cfg(not(target_os = "windows"))]
     #[tokio::test]
     async fn port_ferme_en_loopback_rend_lhote_vivant() {
         // On réserve un port puis on le libère : la loopback refuse alors par RST,
