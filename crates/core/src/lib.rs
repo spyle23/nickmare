@@ -1,12 +1,14 @@
 //! Crate `core` de Nickmare — logique métier pure et testable, sans I/O réseau.
 //!
 //! Elle regroupe les types partagés par tous les niveaux (`model`), le
-//! chargement/validation du périmètre (`scope`), le journal d'audit chaîné
-//! (`audit`), les garde-fous obligatoires (`gate`, le « mur », cf.
-//! `docs/ARCHITECTURE.md` §3.2) et les traits d'abstraction (`traits`).
+//! chargement/validation du périmètre (`scope`), le mode laboratoire voie C
+//! (`lab`), le journal d'audit chaîné (`audit`), les garde-fous obligatoires
+//! (`gate`, le « mur », cf. `docs/ARCHITECTURE.md` §3.2) et les traits
+//! d'abstraction (`traits`).
 
 pub mod audit;
 pub mod gate;
+pub mod lab;
 pub mod model;
 pub mod scope;
 pub mod traits;
