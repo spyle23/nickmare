@@ -23,7 +23,10 @@ async fn la_carte_decouverte_se_rend_en_texte_lisible() {
     let view = render_map(&map);
 
     // Le périmètre et les hôtes découverts apparaissent dans la vue.
-    assert!(view.contains("Carte réseau — périmètre 192.168.1.0/24"), "{view}");
+    assert!(
+        view.contains("Carte réseau — périmètre 192.168.1.0/24"),
+        "{view}"
+    );
     assert!(view.contains("Bilan : 2 hôte(s)"), "{view}");
     assert!(view.contains("192.168.1.1 — passerelle"), "{view}");
     assert!(view.contains("192.168.1.10 — serveur"), "{view}");

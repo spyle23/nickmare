@@ -422,8 +422,8 @@ fn run_map(args: &[String]) -> Result<String, String> {
 /// `discover`) et sa persistance arrivent avec l'implémentation réseau réelle
 /// (#8) ; ici on rend une carte déjà produite — logique pure, testable.
 fn render_map_json(content: &str) -> Result<String, String> {
-    let map: NetworkMap = serde_json::from_str(content)
-        .map_err(|err| format!("carte réseau illisible : {err}"))?;
+    let map: NetworkMap =
+        serde_json::from_str(content).map_err(|err| format!("carte réseau illisible : {err}"))?;
     Ok(render_map(&map))
 }
 
@@ -618,7 +618,10 @@ mod tests {
     #[test]
     fn map_rend_la_carte_hotes_compromis_et_pivots() {
         let out = render_map_json(MAP).unwrap();
-        assert!(out.contains("Carte réseau — périmètre 192.168.56.0/24"), "{out}");
+        assert!(
+            out.contains("Carte réseau — périmètre 192.168.56.0/24"),
+            "{out}"
+        );
         // Hôtes et leurs champs.
         assert!(out.contains("192.168.56.1 — passerelle"), "{out}");
         assert!(out.contains("gw.lab"), "{out}");
@@ -627,7 +630,10 @@ mod tests {
         assert!(out.contains("80/tcp http (nginx)"), "{out}");
         // Hôte compromis et chemin de pivot visuellement distincts.
         assert!(out.contains("[COMPROMIS]"), "{out}");
-        assert!(out.contains("192.168.56.10 → 192.168.56.20  (via ssh"), "{out}");
+        assert!(
+            out.contains("192.168.56.10 → 192.168.56.20  (via ssh"),
+            "{out}"
+        );
     }
 
     #[test]

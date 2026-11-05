@@ -20,7 +20,9 @@
 
 use std::fmt;
 
-use nickmare_core::model::{Host, HostRole, NetworkMap, OsGuess, PivotLink, Port, PortState, Proto};
+use nickmare_core::model::{
+    Host, HostRole, NetworkMap, OsGuess, PivotLink, Port, PortState, Proto,
+};
 
 // --- Mise à jour incrémentale (agrégation au fil de la découverte) ----------
 
@@ -335,7 +337,10 @@ mod tests {
         let map = build_map("192.168.1.0/24", vec![gateway(), server()]);
         let view = render_map(&map);
 
-        assert!(view.contains("Carte réseau — périmètre 192.168.1.0/24"), "{view}");
+        assert!(
+            view.contains("Carte réseau — périmètre 192.168.1.0/24"),
+            "{view}"
+        );
         assert!(view.contains("Bilan : 2 hôte(s)"), "{view}");
         // Hôtes et leurs champs (IP, rôle, hostname, OS, MAC, services).
         assert!(view.contains("192.168.1.1 — passerelle"), "{view}");
@@ -354,7 +359,10 @@ mod tests {
     fn carte_vide_est_rendue_sans_paniquer() {
         let map = build_map("10.0.0.0/24", Vec::new());
         let view = render_map(&map);
-        assert!(view.contains("Bilan : 0 hôte(s) · 0 compromis · 0 pivot(s)"), "{view}");
+        assert!(
+            view.contains("Bilan : 0 hôte(s) · 0 compromis · 0 pivot(s)"),
+            "{view}"
+        );
         assert!(view.contains("(aucun hôte découvert)"), "{view}");
         assert!(view.contains("(aucun chemin de pivot établi)"), "{view}");
     }
@@ -376,18 +384,30 @@ mod tests {
         let view = render_map(&map);
 
         // Le compromis porte l'étiquette distinctive ; la passerelle non.
-        assert!(view.contains("192.168.1.10 — serveur  [COMPROMIS]"), "{view}");
+        assert!(
+            view.contains("192.168.1.10 — serveur  [COMPROMIS]"),
+            "{view}"
+        );
         assert!(!view.contains("passerelle  [COMPROMIS]"), "{view}");
-        assert!(view.contains("Bilan : 2 hôte(s) · 1 compromis · 1 pivot(s)"), "{view}");
+        assert!(
+            view.contains("Bilan : 2 hôte(s) · 1 compromis · 1 pivot(s)"),
+            "{view}"
+        );
         // Le pivot apparaît dans sa propre section, avec relais et horodatage.
-        assert!(view.contains("192.168.1.10 → 192.168.1.20  (via ssh"), "{view}");
+        assert!(
+            view.contains("192.168.1.10 → 192.168.1.20  (via ssh"),
+            "{view}"
+        );
     }
 
     #[test]
     fn services_affiche_mention_si_aucun_port_ouvert() {
         let map = build_map("192.168.1.0/24", vec![gateway()]);
         let view = render_map(&map);
-        assert!(view.contains("services : aucun port ouvert détecté"), "{view}");
+        assert!(
+            view.contains("services : aucun port ouvert détecté"),
+            "{view}"
+        );
     }
 
     #[test]
@@ -401,7 +421,10 @@ mod tests {
         }];
         let map = build_map("192.168.1.0/24", vec![host]);
         let view = render_map(&map);
-        assert!(view.contains("services : aucun port ouvert détecté"), "{view}");
+        assert!(
+            view.contains("services : aucun port ouvert détecté"),
+            "{view}"
+        );
         assert!(!view.contains("80/tcp"), "{view}");
     }
 
@@ -457,7 +480,11 @@ mod tests {
         assert_eq!(host.hostname.as_deref(), Some("srv.local"));
         assert_eq!(host.os_guess, Some(OsGuess::Linux));
         assert_eq!(host.mac, Some(MacAddr([1, 2, 3, 4, 5, 6])));
-        assert_eq!(host.first_seen, t(50), "première apparition la plus ancienne");
+        assert_eq!(
+            host.first_seen,
+            t(50),
+            "première apparition la plus ancienne"
+        );
         assert!(host.compromised, "une compromission acquise ne se perd pas");
         assert_eq!(host.ports.len(), 1, "ports fusionnés");
     }
