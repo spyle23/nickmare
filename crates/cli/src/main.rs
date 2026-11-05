@@ -221,7 +221,10 @@ fn enabled_caps(scope: &Scope) -> String {
 fn run_lab(args: &[String]) -> Result<String, String> {
     match args.first().map(String::as_str) {
         Some("start") => run_lab_start(&args[1..]),
-        Some(other) => Err(format!("sous-commande lab inconnue : {other}\n\n{}", usage())),
+        Some(other) => Err(format!(
+            "sous-commande lab inconnue : {other}\n\n{}",
+            usage()
+        )),
         None => Err(format!("sous-commande lab manquante\n\n{}", usage())),
     }
 }
@@ -299,7 +302,10 @@ fn lab_start(
     now: DateTime<Utc>,
 ) -> Result<String, String> {
     if networks.is_empty() {
-        return Err(format!("mode labo : au moins un <cidr> est requis\n\n{}", usage()));
+        return Err(format!(
+            "mode labo : au moins un <cidr> est requis\n\n{}",
+            usage()
+        ));
     }
     let valid_until = now + TimeDelta::hours(hours);
     let session = LabSession::start(networks, operator, now, valid_until)
@@ -342,7 +348,10 @@ fn summarize_lab(session: &LabSession) -> String {
     let mut lines: Vec<String> = Vec::new();
     lines.push("Mode LABORATOIRE (voie C) — périmètre établi".to_string());
     lines.push(format!("  Opérateur     : {}", scope.engagement.operator));
-    lines.push(format!("  Périmètre     : {}", session.networks().join(", ")));
+    lines.push(format!(
+        "  Périmètre     : {}",
+        session.networks().join(", ")
+    ));
     lines.push(format!(
         "  Fenêtre       : {} → {}",
         scope.engagement.valid_from, scope.engagement.valid_until
@@ -354,7 +363,8 @@ fn summarize_lab(session: &LabSession) -> String {
     lines.push(format!("  Empreinte SHA-256 : {}", scope.fingerprint()));
     lines.push(format!(
         "  Attestation   : {} sur {} (empreinte liée au scope)",
-        session.attestation().operator, session.attestation().perimeter
+        session.attestation().operator,
+        session.attestation().perimeter
     ));
     if session.requires_reinforced_confirmation() {
         lines.push(format!(

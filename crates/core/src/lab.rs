@@ -395,7 +395,10 @@ mod tests {
             at(2027, 1, 1, 0),
         )
         .unwrap_err();
-        assert!(matches!(err, LabError::Scope(ScopeError::Network(_))), "{err}");
+        assert!(
+            matches!(err, LabError::Scope(ScopeError::Network(_))),
+            "{err}"
+        );
     }
 
     #[test]
@@ -408,7 +411,10 @@ mod tests {
             at(2026, 1, 1, 0),
         )
         .unwrap_err();
-        assert!(matches!(err, LabError::Scope(ScopeError::Window(_))), "{err}");
+        assert!(
+            matches!(err, LabError::Scope(ScopeError::Window(_))),
+            "{err}"
+        );
     }
 
     #[test]
@@ -490,7 +496,10 @@ mod tests {
         // Un sous-réseau privé + un sous-réseau publiquement routable.
         let s = session(&["10.10.1.0/24", "8.8.8.0/24"]);
         assert!(s.requires_reinforced_confirmation());
-        assert_eq!(s.non_isolated_networks().to_vec(), vec!["8.8.8.0/24".to_string()]);
+        assert_eq!(
+            s.non_isolated_networks().to_vec(),
+            vec!["8.8.8.0/24".to_string()]
+        );
     }
 
     #[test]
@@ -513,16 +522,14 @@ mod tests {
         assert!(is_isolated_cidr("fe80::/64"));
         assert!(is_isolated_cidr("::1/128"));
 
-        // Routables / publics / hors blocs privés → non isolés.
+        // Routables / publics / hors blocs privés → non isolés (fail-safe).
         assert!(!is_isolated_cidr("8.8.8.0/24"));
         assert!(!is_isolated_cidr("1.1.1.1/32"));
         assert!(!is_isolated_cidr("172.32.0.0/16")); // hors du /12
         assert!(!is_isolated_cidr("100.64.0.0/10")); // CGNAT : prudence → avertit
         assert!(!is_isolated_cidr("2001:db8::/32")); // global unicast
-        // Trop large pour être contenu dans un bloc privé → non isolé (fail-safe).
-        assert!(!is_isolated_cidr("10.0.0.0/4"));
-        // Mal formé → non isolé (fail-safe).
-        assert!(!is_isolated_cidr("pas-un-cidr"));
+        assert!(!is_isolated_cidr("10.0.0.0/4")); // trop large pour un bloc privé
+        assert!(!is_isolated_cidr("pas-un-cidr")); // mal formé
     }
 
     // --- Tests négatifs de sécurité §10.4 : la sûreté ne baisse jamais ------
@@ -568,7 +575,10 @@ mod tests {
         let action = Action::Recon {
             target: ip("192.168.99.1"),
         };
-        assert_eq!(gate.check(&action, &req), Decision::Deny(DenyReason::OutOfScope));
+        assert_eq!(
+            gate.check(&action, &req),
+            Decision::Deny(DenyReason::OutOfScope)
+        );
     }
 
     #[test]
@@ -607,7 +617,10 @@ mod tests {
             target: t,
             mode: ExploitMode::Exploit, // charge destructrice
         };
-        assert_eq!(gate.check(&action, &req), Decision::Deny(DenyReason::Destructive));
+        assert_eq!(
+            gate.check(&action, &req),
+            Decision::Deny(DenyReason::Destructive)
+        );
     }
 
     #[test]
@@ -641,6 +654,9 @@ recon = true
         };
         let req = Request::new(now(), OP).with_attestation(&att);
         assert_eq!(gate.check(&action, &req), Decision::Allow);
-        assert_eq!(gate.check(&action, &req), Decision::Deny(DenyReason::RateExceeded));
+        assert_eq!(
+            gate.check(&action, &req),
+            Decision::Deny(DenyReason::RateExceeded)
+        );
     }
 }
