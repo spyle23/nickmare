@@ -9,11 +9,26 @@ repository.workspace = true
 # Modèle (Host, NetworkMap), traits (NetworkProvider) et seau à jetons partagé
 # (rate::TokenBucket, réutilisé pour plafonner le débit de découverte).
 nickmare-core = { path = "../core" }
-# Instant fourni au seau à jetons (déterministe, sans horloge réelle).
+# Instant fourni au seau à jetons (déterministe, sans horloge réelle) et
+# horodatage `first_seen` des hôtes découverts.
 chrono = "0.4.38"
+# Trait `NetworkProvider`/`ProbeEmitter` asynchrones et objet-sûrs (même version
+# que `core`, qui en dépend déjà pour le trait).
+async-trait = "0.1.83"
 
 # tokio figé (=) comme dans `core` : versions récentes > MSRV de la toolchain
-# épinglée (1.83). En dev-dependency seulement (runtime des tests async contre
-# le mock) — aucune I/O réseau n'est tirée ici (elle arrive avec #8).
-[dev-dependencies]
-tokio = { version = "=1.40.0", features = ["macros", "rt"] }
+# épinglée (1.83). Désormais dépendance normale (et plus seulement de dev) :
+# l'implémentation réelle du `NetworkProvider` (#8) s'appuie sur le runtime pour
+# déporter les I/O socket bloquantes (`spawn_blocking`), cadencer les sondes
+# (`time::sleep`) et borner chaque opération. On n'active QUE `rt`/`time`/`macros`
+# — PAS la feature `net` — pour ne tirer ni `mio` ni les liaisons socket OS :
+# les sockets réelles passent par `std::net` (portable) et `libc` (Linux brut).
+tokio = { version = "=1.40.0", features = ["rt", "time", "macros"] }
+
+# Sockets bruts et énumération d'interfaces : Linux uniquement (le ticket est
+# « Linux d'abord » ; Windows via Npcap suivra). `libc` n'a AUCUNE dépendance
+# transitive et reste en édition 2015 → arbre MSRV 1.83 sûr, contrairement aux
+# piles réseau plus lourdes. Déclarée par cible : jamais tirée sur Windows, donc
+# `--all-features` sur le job Windows ne la compile pas.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
