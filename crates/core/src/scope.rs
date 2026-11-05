@@ -517,7 +517,15 @@ fn sha256_hex(data: &[u8]) -> String {
 
 /// Encode des octets en hexadécimal minuscule.
 fn to_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    use std::fmt::Write as _;
+
+    let mut hex = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        // Écrire dans une `String` est infaillible : le `Result` est ignoré
+        // à dessein (clippy::format_collect — on évite un `format!` par octet).
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
 }
 
 /// Décode une chaîne hexadécimale en octets. `None` si longueur impaire ou
