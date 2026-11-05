@@ -195,12 +195,8 @@ fn parse_cidr_v4(cidr: &str) -> Result<(Ipv4Addr, u8), DiscoveryError> {
     let Some((addr, prefix)) = cidr.split_once('/') else {
         return Err(DiscoveryError::InvalidCidr(cidr.to_string()));
     };
-    let Ok(prefix) = prefix.parse::<u8>() else {
-        return Err(DiscoveryError::InvalidCidr(cidr.to_string()));
-    };
-    if prefix > 32 {
-        return Err(DiscoveryError::PrefixTooLarge(prefix));
-    }
+    // Famille d'abord : une adresse IPv6 est non gérée quel que soit son préfixe
+    // (sinon `/64` serait à tort rejeté en « préfixe trop grand »).
     let Ok(ip) = addr.parse::<IpAddr>() else {
         return Err(DiscoveryError::InvalidCidr(cidr.to_string()));
     };
@@ -208,6 +204,12 @@ fn parse_cidr_v4(cidr: &str) -> Result<(Ipv4Addr, u8), DiscoveryError> {
         IpAddr::V4(v4) => v4,
         IpAddr::V6(_) => return Err(DiscoveryError::UnsupportedFamily(cidr.to_string())),
     };
+    let Ok(prefix) = prefix.parse::<u8>() else {
+        return Err(DiscoveryError::InvalidCidr(cidr.to_string()));
+    };
+    if prefix > 32 {
+        return Err(DiscoveryError::PrefixTooLarge(prefix));
+    }
     let base = Ipv4Addr::from(u32::from(v4) & mask_v4(prefix));
     Ok((base, prefix))
 }
