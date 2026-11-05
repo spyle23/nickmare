@@ -323,23 +323,23 @@ fn run_target_select(args: &[String]) -> Result<String, String> {
     while index < args.len() {
         if let Some(next) = parse_target_opt(&mut opts, args, index)? {
             index = next;
-            continue;
+        } else {
+            let arg = args[index].as_str();
+            if arg == "--network" {
+                return Err(format!(
+                    "option --network : inutile pour « target select » (le réseau est l'argument positionnel <cidr>)\n\n{}",
+                    usage()
+                ));
+            }
+            if arg.starts_with('-') {
+                return Err(format!("option inconnue : {arg}\n\n{}", usage()));
+            }
+            if network.is_some() {
+                return Err(format!("argument en trop : {arg}\n\n{}", usage()));
+            }
+            network = Some(arg.to_string());
+            index += 1;
         }
-        let arg = args[index].as_str();
-        if arg == "--network" {
-            return Err(format!(
-                "option --network : inutile pour « target select » (le réseau est l'argument positionnel <cidr>)\n\n{}",
-                usage()
-            ));
-        }
-        if arg.starts_with('-') {
-            return Err(format!("option inconnue : {arg}\n\n{}", usage()));
-        }
-        if network.is_some() {
-            return Err(format!("argument en trop : {arg}\n\n{}", usage()));
-        }
-        network = Some(arg.to_string());
-        index += 1;
     }
 
     let Some(network) = network else {
@@ -394,26 +394,25 @@ fn run_target_host(args: &[String]) -> Result<String, String> {
     while index < args.len() {
         if let Some(next) = parse_target_opt(&mut opts, args, index)? {
             index = next;
-            continue;
-        }
-        let arg = args[index].as_str();
-        match arg {
-            "--network" => {
-                let value = args
-                    .get(index + 1)
-                    .ok_or_else(|| "option --network : <cidr> attendu".to_string())?;
-                network = Some(value.clone());
-                index += 2;
-            }
-            other if other.starts_with('-') => {
-                return Err(format!("option inconnue : {other}\n\n{}", usage()));
-            }
-            positional => {
-                if host.is_some() {
-                    return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+        } else {
+            match args[index].as_str() {
+                "--network" => {
+                    let value = args
+                        .get(index + 1)
+                        .ok_or_else(|| "option --network : <cidr> attendu".to_string())?;
+                    network = Some(value.clone());
+                    index += 2;
                 }
-                host = Some(positional.to_string());
-                index += 1;
+                other if other.starts_with('-') => {
+                    return Err(format!("option inconnue : {other}\n\n{}", usage()));
+                }
+                positional => {
+                    if host.is_some() {
+                        return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+                    }
+                    host = Some(positional.to_string());
+                    index += 1;
+                }
             }
         }
     }

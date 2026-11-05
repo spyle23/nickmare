@@ -293,7 +293,10 @@ mod tests {
         let s = selection("192.168.56.0/24");
         // Le périmètre couvre exactement le réseau sélectionné (verrouillé).
         assert_eq!(s.network(), "192.168.56.0/24");
-        assert_eq!(s.scope().targets.networks, vec!["192.168.56.0/24".to_string()]);
+        assert_eq!(
+            s.scope().targets.networks,
+            vec!["192.168.56.0/24".to_string()]
+        );
         // L'attestation est liée à l'empreinte exacte du scope et à l'opérateur.
         assert_eq!(s.attestation().scope_fingerprint, s.scope().fingerprint());
         assert_eq!(s.attestation().operator, OP);
@@ -365,7 +368,10 @@ mod tests {
             at(2027, 1, 1, 0),
         )
         .unwrap_err();
-        assert!(matches!(err, TargetError::Scope(ScopeError::Network(_))), "{err}");
+        assert!(
+            matches!(err, TargetError::Scope(ScopeError::Network(_))),
+            "{err}"
+        );
     }
 
     #[test]
@@ -379,7 +385,10 @@ mod tests {
             at(2026, 1, 1, 0),
         )
         .unwrap_err();
-        assert!(matches!(err, TargetError::Scope(ScopeError::Window(_))), "{err}");
+        assert!(
+            matches!(err, TargetError::Scope(ScopeError::Window(_))),
+            "{err}"
+        );
     }
 
     #[test]
@@ -392,7 +401,10 @@ mod tests {
         let action = Action::Recon {
             target: ip("192.168.56.10"),
         };
-        assert_eq!(gate.check(&action, &req), Decision::Deny(DenyReason::NoScope));
+        assert_eq!(
+            gate.check(&action, &req),
+            Decision::Deny(DenyReason::NoScope)
+        );
     }
 
     // --- Confinement : target host (US-B4) ----------------------------------
@@ -431,7 +443,10 @@ mod tests {
         let s = selection("192.168.56.0/24");
         let _ = s.confine(ip("192.168.56.10"), now()); // dans le périmètre
         let _ = s.confine(ip("10.0.0.5"), now()); // hors périmètre
-        assert_eq!(s.scope().targets.networks, vec!["192.168.56.0/24".to_string()]);
+        assert_eq!(
+            s.scope().targets.networks,
+            vec!["192.168.56.0/24".to_string()]
+        );
         assert_eq!(s.network(), "192.168.56.0/24");
     }
 
