@@ -6,6 +6,8 @@ Jeux de données de référence pour les tests (cf. [`docs/ARCHITECTURE.md`](../
 - scénarios de recon mock (`mock/recon_simple.json`) rejoués par
   `MockNetworkProvider`, et carte réseau de démonstration
   (`mock/network_map.json`) rendue par `nickmare map` ;
+- bannières de services (`mock/service_banners.json`) rejouées par
+  `MockNetworkProvider` pour l'identification de services (`net::service_id`, Phase 3) ;
 - captures pcap de référence pour le WiFi passif / l'ARP (Phase 4) ;
 - fixtures CVE / NVD pour la corrélation (Phase 3).
 

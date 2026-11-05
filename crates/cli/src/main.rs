@@ -17,12 +17,13 @@ use chrono::{DateTime, TimeDelta, Utc};
 use nickmare_core::audit::AuditLog;
 use nickmare_core::gate::{Decision, Request};
 use nickmare_core::lab::LabSession;
-use nickmare_core::model::{NetworkMap, Port, PortState, Proto};
+use nickmare_core::model::{Finding, NetworkMap, Port, PortState, Proto, Service, Severity};
 use nickmare_core::scope::{Capability, Scope, TemporalStatus};
 use nickmare_core::target::TargetSelection;
 use nickmare_net::map::render_map;
 use nickmare_net::portscan::{scan_gated, ProviderProbe, ScanReport, UdpProbe};
 use nickmare_net::provider::{RealNetworkProvider, Timeouts};
+use nickmare_net::service_id::{identify_gated, IdentifyReport};
 
 /// Durée par défaut de la fenêtre d'un lab (heures) si `--hours` est absent.
 const DEFAULT_LAB_HOURS: i64 = 12;
@@ -52,6 +53,9 @@ fn usage() -> String {
         "  nickmare scan ports <ip> --network <cidr> --attest [--ports <p,p,...>] [--udp]",
         "                      [--rate <pps>] [--operator <id>] [--hours <n>]",
         "                      [--timeout-ms <n>] [--audit <chemin>]",
+        "  nickmare service id <ip> --network <cidr> --attest [--ports <p,p,...>]",
+        "                      [--rate <pps>] [--operator <id>] [--hours <n>]",
+        "                      [--timeout-ms <n>] [--audit <chemin>]",
         "  nickmare map <carte.json>",
         "",
         "scope validate : valide un fichier de scope (voie B) — résumé + empreinte SHA-256,",
@@ -65,6 +69,9 @@ fn usage() -> String {
         "scan ports     : scanne les ports d'un hôte du réseau attesté (recon active N1) —",
         "                 passe par le gate (refus hors périmètre + audit) ; TCP connect sans",
         "                 privilège par défaut, --udp pour l'UDP basique, débit plafonné --rate.",
+        "service id     : identifie les services des ports ouverts d'un hôte attesté (recon",
+        "                 active N1) — scan puis lecture de bannières via le gate ; nom +",
+        "                 produit + version quand disponible, et constats associés (US-C1).",
         "map            : affiche la carte réseau (NetworkMap) en texte — hôtes, rôles,",
         "                 services, hôtes compromis et chemins de pivot (US-B3).",
     ];
@@ -93,6 +100,7 @@ fn run(args: &[String]) -> Result<String, String> {
         Some("target") => run_target(&args[1..]),
         Some("lab") => run_lab(&args[1..]),
         Some("scan") => run_scan(&args[1..]),
+        Some("service") => run_service(&args[1..]),
         Some("map") => run_map(&args[1..]),
         Some("--version" | "-V") => Ok(format!("{}\n", banniere())),
         Some("--help" | "-h") | None => Ok(usage()),
@@ -990,6 +998,325 @@ fn summarize_scan(host: std::net::IpAddr, network: &str, udp: bool, ports: &[Por
     out
 }
 
+// --- Identification de services (`service id`) ------------------------------
+
+fn run_service(args: &[String]) -> Result<String, String> {
+    match args.first().map(String::as_str) {
+        Some("id") => run_service_id(&args[1..]),
+        Some(other) => Err(format!(
+            "sous-commande service inconnue : {other}\n\n{}",
+            usage()
+        )),
+        None => Err(format!("sous-commande service manquante\n\n{}", usage())),
+    }
+}
+
+/// Options analysées de `service id` (mêmes garde-fous que `scan ports`, sans
+/// l'UDP : la lecture de bannière est TCP).
+struct ServiceOpts {
+    host: Option<String>,
+    network: Option<String>,
+    attested: bool,
+    ports: Vec<u16>,
+    rate_pps: u32,
+    operator: Option<String>,
+    hours: i64,
+    timeout_ms: u64,
+    audit_path: Option<String>,
+}
+
+impl Default for ServiceOpts {
+    fn default() -> Self {
+        Self {
+            host: None,
+            network: None,
+            attested: false,
+            ports: Vec::new(),
+            rate_pps: 0,
+            operator: None,
+            hours: DEFAULT_SELECT_HOURS,
+            timeout_ms: DEFAULT_SCAN_TIMEOUT_MS,
+            audit_path: None,
+        }
+    }
+}
+
+fn run_service_id(args: &[String]) -> Result<String, String> {
+    let mut opts = ServiceOpts::default();
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--network" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --network : <cidr> attendu".to_string())?;
+                opts.network = Some(value.clone());
+                index += 2;
+            }
+            "--ports" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --ports : liste de ports attendue".to_string())?;
+                opts.ports = parse_ports(value)?;
+                index += 2;
+            }
+            "--rate" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --rate : valeur manquante".to_string())?;
+                opts.rate_pps = value
+                    .parse::<u32>()
+                    .map_err(|_| format!("option --rate : entier attendu, reçu {value:?}"))?;
+                index += 2;
+            }
+            "--operator" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --operator : identité manquante".to_string())?;
+                opts.operator = Some(value.clone());
+                index += 2;
+            }
+            "--hours" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --hours : valeur manquante".to_string())?;
+                opts.hours = value
+                    .parse::<i64>()
+                    .map_err(|_| format!("option --hours : entier attendu, reçu {value:?}"))?;
+                if opts.hours <= 0 {
+                    return Err("option --hours : durée strictement positive attendue".to_string());
+                }
+                index += 2;
+            }
+            "--timeout-ms" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --timeout-ms : valeur manquante".to_string())?;
+                opts.timeout_ms = value
+                    .parse::<u64>()
+                    .map_err(|_| format!("option --timeout-ms : entier attendu, reçu {value:?}"))?;
+                index += 2;
+            }
+            "--audit" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --audit : chemin manquant".to_string())?;
+                opts.audit_path = Some(value.clone());
+                index += 2;
+            }
+            "--attest" => {
+                opts.attested = true;
+                index += 1;
+            }
+            other if other.starts_with('-') => {
+                return Err(format!("option inconnue : {other}\n\n{}", usage()));
+            }
+            positional => {
+                if opts.host.is_some() {
+                    return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+                }
+                opts.host = Some(positional.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    let Some(host) = opts.host else {
+        return Err(format!("hôte à identifier manquant (<ip>)\n\n{}", usage()));
+    };
+    let Some(network) = opts.network else {
+        return Err(format!(
+            "réseau attesté manquant : précisez --network <cidr>\n\n{}",
+            usage()
+        ));
+    };
+    let operator = opts.operator.unwrap_or_else(default_operator);
+    service_id_cmd(
+        host,
+        network,
+        operator,
+        opts.attested,
+        &opts.ports,
+        opts.rate_pps,
+        opts.hours,
+        opts.timeout_ms,
+        opts.audit_path.as_deref(),
+        Utc::now(),
+    )
+}
+
+/// Scanne puis identifie les services des ports ouverts de `host` **dans le
+/// réseau attesté**, chaque étape passant par le gate (recon active N1, §3.2).
+/// `now` est injecté pour une fenêtre déterministe en test. Fail-safe : sans
+/// attestation ou hors périmètre, rien n'est scanné ni lu.
+#[allow(clippy::too_many_arguments)]
+fn service_id_cmd(
+    host: String,
+    network: String,
+    operator: String,
+    attested: bool,
+    ports: &[u16],
+    rate_pps: u32,
+    hours: i64,
+    timeout_ms: u64,
+    audit_path: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<String, String> {
+    let host_ip = host
+        .parse()
+        .map_err(|_| format!("adresse d'hôte invalide : {host}"))?;
+    let valid_until = now + TimeDelta::hours(hours);
+    let selection = TargetSelection::select(network, operator, attested, now, valid_until)
+        .map_err(|err| format!("identification refusée : {err}"))?;
+
+    let network = selection.network().to_string();
+    let operator = selection.scope().engagement.operator.clone();
+    let att = selection.attestation().clone();
+    let req = Request::new(now, &operator).with_attestation(&att);
+    let mut gate = selection.gate();
+    let timeout = Duration::from_millis(timeout_ms.max(1));
+    let provider = RealNetworkProvider::new().with_timeouts(Timeouts::new(timeout, timeout));
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .map_err(|err| format!("initialisation du runtime d'identification : {err}"))?;
+
+    // Deux actions de recon active successives, chacune soumise au gate : le scan
+    // (TCP connect, réutilise le provider réel) détermine les ports ouverts, puis
+    // l'identification lit leurs bannières via le même provider.
+    let outcome = runtime.block_on(async {
+        let probe = ProviderProbe::new(&provider);
+        let scan = scan_gated(&mut gate, &req, &operator, &probe, host_ip, ports, rate_pps).await;
+        match scan {
+            ScanReport::Refused { reason, record } => Err((reason, record)),
+            ScanReport::Allowed {
+                ports: scanned,
+                record,
+            } => {
+                let report = identify_gated(
+                    &mut gate, &req, &operator, &provider, host_ip, &scanned, rate_pps,
+                )
+                .await;
+                Ok((record, report))
+            }
+        }
+    });
+
+    // Traçabilité : chaque action est journalisée (scan + identification, ou le
+    // refus amont), dans un journal chaîné.
+    match outcome {
+        Err((reason, record)) => {
+            journal_records(audit_path, &[record])?;
+            Err(format!(
+                "identification refusée : hôte {host_ip} hors du périmètre attesté {network} ({reason})"
+            ))
+        }
+        Ok((scan_record, report)) => {
+            journal_records(audit_path, &[scan_record, report.record().clone()])?;
+            match report {
+                IdentifyReport::Allowed {
+                    ports, findings, ..
+                } => Ok(summarize_service_id(host_ip, &network, &ports, &findings)),
+                IdentifyReport::Refused { reason, .. } => {
+                    Err(format!("identification refusée : {reason}"))
+                }
+            }
+        }
+    }
+}
+
+/// Journalise une série d'enregistrements d'audit dans un journal chaîné (si un
+/// chemin est fourni).
+fn journal_records(
+    audit_path: Option<&str>,
+    records: &[nickmare_core::audit::AuditRecord],
+) -> Result<(), String> {
+    let Some(path) = audit_path else {
+        return Ok(());
+    };
+    let mut log = AuditLog::open(path)
+        .map_err(|err| format!("ouverture du journal d'audit {path} : {err}"))?;
+    for record in records {
+        log.append(record.clone())
+            .map_err(|err| format!("écriture du journal d'audit {path} : {err}"))?;
+    }
+    Ok(())
+}
+
+/// Libellé français d'une gravité de constat.
+fn severity_label(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Info => "info",
+        Severity::Low => "faible",
+        Severity::Medium => "moyen",
+        Severity::High => "élevé",
+        Severity::Critical => "critique",
+    }
+}
+
+/// Libellé compact d'un service : `nom [produit [version]]`.
+fn service_line(service: &Service) -> String {
+    let mut line = service.name.clone();
+    match (&service.product, &service.version) {
+        (Some(product), Some(version)) => line.push_str(&format!(" {product} {version}")),
+        (Some(product), None) => line.push_str(&format!(" {product}")),
+        (None, Some(version)) => line.push_str(&format!(" v{version}")),
+        (None, None) => {}
+    }
+    line
+}
+
+/// Résumé lisible d'une identification autorisée : services des ports ouverts +
+/// constats produits.
+fn summarize_service_id(
+    host: std::net::IpAddr,
+    network: &str,
+    ports: &[Port],
+    findings: &[Finding],
+) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    lines.push(format!(
+        "Identification de services — {host} (réseau attesté {network})"
+    ));
+
+    let mut identified = 0u32;
+    for port in ports {
+        if port.state != PortState::Open {
+            continue;
+        }
+        if let Some(service) = &port.service {
+            identified += 1;
+            lines.push(format!(
+                "  {}/{}  {}",
+                port.number,
+                proto_label(port.proto),
+                service_line(service)
+            ));
+        }
+    }
+    if identified == 0 {
+        lines.push("  (aucun service identifié sur un port ouvert)".to_string());
+    }
+
+    lines.push(format!("Constats : {}", findings.len()));
+    for finding in findings {
+        lines.push(format!(
+            "  [{}] {}",
+            severity_label(finding.severity),
+            finding.title
+        ));
+    }
+
+    lines.push(format!(
+        "Bilan : {identified} service(s) identifié(s), {} constat(s).",
+        findings.len()
+    ));
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
+}
+
 // --- Vue carte textuelle (`map`) --------------------------------------------
 
 fn run_map(args: &[String]) -> Result<String, String> {
@@ -1530,6 +1857,126 @@ mod tests {
     fn scan_ports_sans_reseau_erreur() {
         let err = run_scan(&["ports".to_string(), "192.168.56.10".to_string()]).unwrap_err();
         assert!(err.contains("réseau attesté manquant"), "{err}");
+    }
+
+    // --- Identification de services : `service id` --------------------------
+
+    #[test]
+    fn dispatch_service_sans_sous_commande_erreur() {
+        let err = run(&["service".to_string()]).unwrap_err();
+        assert!(err.contains("sous-commande service manquante"), "{err}");
+    }
+
+    #[test]
+    fn dispatch_service_sous_commande_inconnue_erreur() {
+        let err = run(&["service".to_string(), "bidon".to_string()]).unwrap_err();
+        assert!(err.contains("sous-commande service inconnue"), "{err}");
+    }
+
+    #[test]
+    fn service_id_sans_hote_erreur() {
+        let err = run_service(&["id".to_string()]).unwrap_err();
+        assert!(err.contains("hôte à identifier manquant"), "{err}");
+    }
+
+    #[test]
+    fn service_id_sans_reseau_erreur() {
+        let err = run_service(&["id".to_string(), "192.168.56.10".to_string()]).unwrap_err();
+        assert!(err.contains("réseau attesté manquant"), "{err}");
+    }
+
+    #[test]
+    fn service_id_ip_invalide_erreur() {
+        let err = service_id_cmd(
+            "pas-une-ip".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            &[22],
+            0,
+            12,
+            500,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("adresse d'hôte invalide"), "{err}");
+    }
+
+    #[test]
+    fn negatif_service_id_hors_reseau_refuse_et_journalise() {
+        // §10.4 : identifier un service sur un hôte HORS périmètre → refus + audit
+        // `blocked_target`, sans la moindre I/O réseau (le gate refuse en amont).
+        let path = tmp_audit("service-deny");
+        let path_str = path.to_str().unwrap();
+        let err = service_id_cmd(
+            "10.0.0.5".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            &[22, 80],
+            0,
+            12,
+            500,
+            Some(path_str),
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("hors du périmètre attesté"), "{err}");
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("blocked_target"), "{content}");
+        assert!(content.contains("\"result\":\"blocked\""), "{content}");
+        assert!(nickmare_core::audit::verify_file(&path).is_ok());
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn negatif_service_id_sans_attestation_refuse() {
+        let err = service_id_cmd(
+            "192.168.56.10".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            false,
+            &[22],
+            0,
+            12,
+            500,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("identification refusée"), "{err}");
+        assert!(err.contains("attestation"), "{err}");
+    }
+
+    #[test]
+    fn service_id_loopback_in_scope_identifie_un_service() {
+        // Identification réelle mais en loopback, sans privilège (CI-safe) : un
+        // port lié mais muet ressort « ouvert » et son service est nommé par le
+        // port (bannière silencieuse → dégradation propre, pas de panique).
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let out = service_id_cmd(
+            "127.0.0.1".to_string(),
+            "127.0.0.1/32".to_string(),
+            "operateur".to_string(),
+            true,
+            &[port],
+            0,
+            12,
+            500,
+            None,
+            now(),
+        )
+        .unwrap();
+        assert!(
+            out.contains("Identification de services — 127.0.0.1"),
+            "{out}"
+        );
+        assert!(out.contains("1 service(s) identifié(s)"), "{out}");
+        // Port éphémère : aucun nom usuel → « unknown », sans panique.
+        assert!(out.contains(&format!("{port}/tcp  unknown")), "{out}");
     }
 
     // --- Vue carte textuelle : `map` ----------------------------------------
