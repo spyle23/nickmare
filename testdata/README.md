@@ -3,6 +3,9 @@
 Jeux de données de référence pour les tests (cf. [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) §6) :
 
 - scopes de test (`*.toml`) — **autorisés par `.gitignore`** sous `testdata/` ;
+- scénarios de recon mock (`mock/recon_simple.json`) rejoués par
+  `MockNetworkProvider`, et carte réseau de démonstration
+  (`mock/network_map.json`) rendue par `nickmare map` ;
 - captures pcap de référence pour le WiFi passif / l'ARP (Phase 4) ;
 - fixtures CVE / NVD pour la corrélation (Phase 3).
 

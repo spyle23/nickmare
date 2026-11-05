@@ -1,0 +1,56 @@
+{
+  "scope_network": "192.168.56.0/24",
+  "hosts": [
+    {
+      "ip": "192.168.56.1",
+      "mac": [0, 26, 43, 60, 77, 94],
+      "hostname": "gw.lab",
+      "os_guess": "NetworkDevice",
+      "ports": [],
+      "role": "Gateway",
+      "compromised": false,
+      "first_seen": "2026-11-05T10:00:00Z"
+    },
+    {
+      "ip": "192.168.56.10",
+      "mac": null,
+      "hostname": "web.lab",
+      "os_guess": "Linux",
+      "ports": [
+        {
+          "number": 22,
+          "proto": "Tcp",
+          "state": "Open",
+          "service": {
+            "name": "ssh",
+            "product": "OpenSSH",
+            "version": "9.6",
+            "banner": null
+          }
+        },
+        {
+          "number": 80,
+          "proto": "Tcp",
+          "state": "Open",
+          "service": {
+            "name": "http",
+            "product": "nginx",
+            "version": null,
+            "banner": null
+          }
+        }
+      ],
+      "role": "Server",
+      "compromised": true,
+      "first_seen": "2026-11-05T10:00:05Z"
+    }
+  ],
+  "pivots": [
+    {
+      "from": "192.168.56.10",
+      "to": "192.168.56.20",
+      "via": "ssh",
+      "at": "2026-11-05T10:05:00Z"
+    }
+  ]
+}
