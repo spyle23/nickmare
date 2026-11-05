@@ -1970,7 +1970,10 @@ mod tests {
             now(),
         )
         .unwrap();
-        assert!(out.contains("Identification de services — 127.0.0.1"), "{out}");
+        assert!(
+            out.contains("Identification de services — 127.0.0.1"),
+            "{out}"
+        );
         assert!(out.contains("1 service(s) identifié(s)"), "{out}");
         // Port éphémère : aucun nom usuel → « unknown », sans panique.
         assert!(out.contains(&format!("{port}/tcp  unknown")), "{out}");

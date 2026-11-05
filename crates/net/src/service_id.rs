@@ -703,7 +703,10 @@ mod tests {
         assert_eq!(service.name, "ssh");
         assert_eq!(service.product.as_deref(), Some("OpenSSH"));
         assert_eq!(service.version.as_deref(), Some("9.6p1"));
-        assert_eq!(service.banner.as_deref(), Some("SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu0.1"));
+        assert_eq!(
+            service.banner.as_deref(),
+            Some("SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu0.1")
+        );
     }
 
     #[test]
@@ -914,7 +917,11 @@ mod tests {
     fn findings_service_chiffre_ne_signale_pas_le_clair() {
         let service = identify_service(22, Some(b"SSH-2.0-OpenSSH_9.6p1\r\n"));
         let findings = service_findings(ip("192.168.10.5"), 22, &service);
-        assert_eq!(findings.len(), 1, "ssh chiffré : pas de constat « en clair »");
+        assert_eq!(
+            findings.len(),
+            1,
+            "ssh chiffré : pas de constat « en clair »"
+        );
         assert_eq!(findings[0].severity, Severity::Info);
         assert!(findings[0].description.contains("OpenSSH"));
         assert!(findings[0].description.contains("9.6p1"));
@@ -1027,7 +1034,10 @@ recon = true
         assert_eq!(ssh_service.version.as_deref(), Some("9.6p1"));
 
         let http = enriched.iter().find(|p| p.number == 80).unwrap();
-        assert_eq!(http.service.as_ref().unwrap().product.as_deref(), Some("nginx"));
+        assert_eq!(
+            http.service.as_ref().unwrap().product.as_deref(),
+            Some("nginx")
+        );
 
         // Le port fermé n'est jamais identifié.
         let closed = enriched.iter().find(|p| p.number == 443).unwrap();
@@ -1092,8 +1102,16 @@ recon = true
         let req = Request::new(now(), OP); // sans attestation
 
         let ports = vec![open_tcp(22)];
-        let report =
-            identify_gated(&mut gate, &req, OP, &provider, ip("192.168.10.25"), &ports, 0).await;
+        let report = identify_gated(
+            &mut gate,
+            &req,
+            OP,
+            &provider,
+            ip("192.168.10.25"),
+            &ports,
+            0,
+        )
+        .await;
         assert!(!report.is_allowed());
         assert_eq!(report.record().action, "blocked_attestation");
         assert_eq!(reads.load(Ordering::SeqCst), 0);
