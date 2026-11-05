@@ -3,22 +3,30 @@
 //! Phase 0, issue #3 : `nickmare scope validate <fichier>` (voie B, cf.
 //! `docs/ARCHITECTURE.md` §3). Phase 1, issue #11 : `nickmare lab start <cidr>…`
 //! (voie C, mode laboratoire). Phase 1, issue #9 : `nickmare map <carte.json>`
-//! (vue carte textuelle de la `NetworkMap`, US-B3). Les autres commandes (recon,
-//! scan, exploitation…) arrivent dans les phases suivantes. Un parseur
-//! d'arguments complet (`clap`) sera introduit quand la surface CLI grandira ;
-//! ici le dispatch reste volontairement minimal.
+//! (vue carte textuelle de la `NetworkMap`, US-B3). Phase 1, issue #10 :
+//! `nickmare target select <cidr>` + `nickmare target host <ip>` (voie A,
+//! sélection interactive + établissement de cible, US-A1/US-B4). Les autres
+//! commandes (recon, scan, exploitation…) arrivent dans les phases suivantes. Un
+//! parseur d'arguments complet (`clap`) sera introduit quand la surface CLI
+//! grandira ; ici le dispatch reste volontairement minimal.
 
 use std::process::ExitCode;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use nickmare_core::audit::AuditLog;
+use nickmare_core::gate::Decision;
 use nickmare_core::lab::LabSession;
 use nickmare_core::model::NetworkMap;
 use nickmare_core::scope::{Capability, Scope, TemporalStatus};
+use nickmare_core::target::TargetSelection;
 use nickmare_net::map::render_map;
 
 /// Durée par défaut de la fenêtre d'un lab (heures) si `--hours` est absent.
 const DEFAULT_LAB_HOURS: i64 = 12;
+
+/// Durée par défaut de la fenêtre d'une sélection voie A (heures) si `--hours`
+/// est absent.
+const DEFAULT_SELECT_HOURS: i64 = 12;
 
 /// Bannière de version, dérivée des métadonnées du paquet.
 fn banniere() -> String {
@@ -30,12 +38,19 @@ fn usage() -> String {
         "",
         "Usage :",
         "  nickmare scope validate <fichier> [--trusted-key <hex> | --trusted-key-file <chemin>]",
+        "  nickmare target select <cidr> --attest [--operator <id>] [--hours <n>] [--audit <chemin>]",
+        "  nickmare target host <ip> --network <cidr> --attest [--operator <id>] [--hours <n>]",
+        "                       [--audit <chemin>]",
         "  nickmare lab start <cidr> [<cidr>...] [--operator <id>] [--hours <n>]",
         "                      [--confirm-non-isolated] [--audit <chemin>]",
         "  nickmare map <carte.json>",
         "",
         "scope validate : valide un fichier de scope (voie B) — résumé + empreinte SHA-256,",
         "                 ou refus clair (code de sortie ≠ 0).",
+        "target select  : choisit un réseau reconnu et atteste l'autorisation (voie A) →",
+        "                 périmètre de session verrouillé sur ce réseau ; --attest obligatoire.",
+        "target host    : désigne l'hôte précis à pénétrer dans le réseau attesté ; refus +",
+        "                 audit si l'hôte est hors du périmètre (n'élargit jamais le scope).",
         "lab start      : établit un périmètre de laboratoire (voie C) sur un ou plusieurs",
         "                 sous-réseaux ; attestation unique, N1–N4 débloqués, mode = \"lab\".",
         "map            : affiche la carte réseau (NetworkMap) en texte — hôtes, rôles,",
@@ -63,6 +78,7 @@ fn main() -> ExitCode {
 fn run(args: &[String]) -> Result<String, String> {
     match args.first().map(String::as_str) {
         Some("scope") => run_scope(&args[1..]),
+        Some("target") => run_target(&args[1..]),
         Some("lab") => run_lab(&args[1..]),
         Some("map") => run_map(&args[1..]),
         Some("--version" | "-V") => Ok(format!("{}\n", banniere())),
@@ -221,6 +237,296 @@ fn enabled_caps(scope: &Scope) -> String {
         names.push("emulation");
     }
     names.join(", ")
+}
+
+// --- Voie A : sélection interactive (`target select` / `target host`) -------
+
+fn run_target(args: &[String]) -> Result<String, String> {
+    match args.first().map(String::as_str) {
+        Some("select") => run_target_select(&args[1..]),
+        Some("host") => run_target_host(&args[1..]),
+        Some(other) => Err(format!(
+            "sous-commande target inconnue : {other}\n\n{}",
+            usage()
+        )),
+        None => Err(format!("sous-commande target manquante\n\n{}", usage())),
+    }
+}
+
+/// Options communes aux deux sous-commandes `target` (attestation, identité,
+/// fenêtre, journal), analysées une fois.
+struct TargetOpts {
+    operator: Option<String>,
+    attested: bool,
+    hours: i64,
+    audit_path: Option<String>,
+}
+
+impl Default for TargetOpts {
+    fn default() -> Self {
+        Self {
+            operator: None,
+            attested: false,
+            hours: DEFAULT_SELECT_HOURS,
+            audit_path: None,
+        }
+    }
+}
+
+/// Analyse une option commune `target` ; renvoie `Ok(Some(index_suivant))` si
+/// l'option a été consommée, `Ok(None)` si `arg` n'est pas une option commune
+/// (au positionnel de l'appelant de décider), ou une erreur.
+fn parse_target_opt(
+    opts: &mut TargetOpts,
+    args: &[String],
+    index: usize,
+) -> Result<Option<usize>, String> {
+    match args[index].as_str() {
+        "--operator" => {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| "option --operator : identité manquante".to_string())?;
+            opts.operator = Some(value.clone());
+            Ok(Some(index + 2))
+        }
+        "--hours" => {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| "option --hours : valeur manquante".to_string())?;
+            opts.hours = value
+                .parse::<i64>()
+                .map_err(|_| format!("option --hours : entier attendu, reçu {value:?}"))?;
+            if opts.hours <= 0 {
+                return Err("option --hours : durée strictement positive attendue".to_string());
+            }
+            Ok(Some(index + 2))
+        }
+        "--audit" => {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| "option --audit : chemin manquant".to_string())?;
+            opts.audit_path = Some(value.clone());
+            Ok(Some(index + 2))
+        }
+        "--attest" => {
+            opts.attested = true;
+            Ok(Some(index + 1))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn run_target_select(args: &[String]) -> Result<String, String> {
+    let mut opts = TargetOpts::default();
+    let mut network: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        if let Some(next) = parse_target_opt(&mut opts, args, index)? {
+            index = next;
+            continue;
+        }
+        let arg = args[index].as_str();
+        if arg == "--network" {
+            return Err(format!(
+                "option --network : inutile pour « target select » (le réseau est l'argument positionnel <cidr>)\n\n{}",
+                usage()
+            ));
+        }
+        if arg.starts_with('-') {
+            return Err(format!("option inconnue : {arg}\n\n{}", usage()));
+        }
+        if network.is_some() {
+            return Err(format!("argument en trop : {arg}\n\n{}", usage()));
+        }
+        network = Some(arg.to_string());
+        index += 1;
+    }
+
+    let Some(network) = network else {
+        return Err(format!(
+            "réseau à sélectionner manquant : indiquez le <cidr> choisi dans la recon\n\n{}",
+            usage()
+        ));
+    };
+    let operator = opts.operator.unwrap_or_else(default_operator);
+    target_select(
+        network,
+        operator,
+        opts.attested,
+        opts.hours,
+        opts.audit_path.as_deref(),
+        Utc::now(),
+    )
+}
+
+/// Établit le périmètre de session (voie A) et renvoie le résumé affichable, ou
+/// un refus clair. `now` est injecté pour une fenêtre déterministe en test.
+/// Fail-safe : sans attestation explicite, aucun périmètre n'est établi.
+fn target_select(
+    network: String,
+    operator: String,
+    attested: bool,
+    hours: i64,
+    audit_path: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<String, String> {
+    let valid_until = now + TimeDelta::hours(hours);
+    let selection = TargetSelection::select(network, operator, attested, now, valid_until)
+        .map_err(|err| format!("sélection refusée : {err}"))?;
+
+    // Journalisation optionnelle de l'attestation (N1, mode standard) dans un
+    // journal chaîné : cible + identité opérateur + horodatage (US-A1, US-A4).
+    if let Some(path) = audit_path {
+        let mut log = AuditLog::open(path)
+            .map_err(|err| format!("ouverture du journal d'audit {path} : {err}"))?;
+        log.append(selection.attest_record())
+            .map_err(|err| format!("écriture du journal d'audit {path} : {err}"))?;
+    }
+
+    Ok(summarize_selection(&selection))
+}
+
+fn run_target_host(args: &[String]) -> Result<String, String> {
+    let mut opts = TargetOpts::default();
+    let mut host: Option<String> = None;
+    let mut network: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        if let Some(next) = parse_target_opt(&mut opts, args, index)? {
+            index = next;
+            continue;
+        }
+        let arg = args[index].as_str();
+        match arg {
+            "--network" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --network : <cidr> attendu".to_string())?;
+                network = Some(value.clone());
+                index += 2;
+            }
+            other if other.starts_with('-') => {
+                return Err(format!("option inconnue : {other}\n\n{}", usage()));
+            }
+            positional => {
+                if host.is_some() {
+                    return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+                }
+                host = Some(positional.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    let Some(host) = host else {
+        return Err(format!("hôte à désigner manquant (<ip>)\n\n{}", usage()));
+    };
+    let Some(network) = network else {
+        return Err(format!(
+            "réseau attesté manquant : précisez --network <cidr> (le réseau sélectionné)\n\n{}",
+            usage()
+        ));
+    };
+    let operator = opts.operator.unwrap_or_else(default_operator);
+    target_host(
+        host,
+        network,
+        operator,
+        opts.attested,
+        opts.hours,
+        opts.audit_path.as_deref(),
+        Utc::now(),
+    )
+}
+
+/// Désigne l'hôte précis à pénétrer dans le réseau attesté (voie A). Refuse (avec
+/// audit) si l'hôte est hors du périmètre. `now` est injecté pour un confinement
+/// déterministe en test. N'élargit jamais le scope : « target host » affine
+/// seulement la cible active.
+fn target_host(
+    host: String,
+    network: String,
+    operator: String,
+    attested: bool,
+    hours: i64,
+    audit_path: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<String, String> {
+    let host_ip = host
+        .parse()
+        .map_err(|_| format!("adresse d'hôte invalide : {host}"))?;
+    let valid_until = now + TimeDelta::hours(hours);
+    let selection = TargetSelection::select(network, operator, attested, now, valid_until)
+        .map_err(|err| format!("cible refusée : {err}"))?;
+
+    let decision = selection.confine(host_ip, now);
+
+    // L'issue de la désignation est journalisée dans tous les cas : succès
+    // (`target.host`) comme refus hors périmètre (`blocked_target`), US-B4/US-A4.
+    if let Some(path) = audit_path {
+        let mut log = AuditLog::open(path)
+            .map_err(|err| format!("ouverture du journal d'audit {path} : {err}"))?;
+        log.append(selection.host_record(host_ip, decision))
+            .map_err(|err| format!("écriture du journal d'audit {path} : {err}"))?;
+    }
+
+    match decision {
+        Decision::Allow => Ok(summarize_host(&selection, host_ip)),
+        Decision::Deny(reason) => Err(format!(
+            "cible refusée : hôte {host_ip} hors du réseau attesté {} ({reason})",
+            selection.network()
+        )),
+    }
+}
+
+/// Résumé lisible d'un périmètre de session voie A : opérateur, réseau, fenêtre,
+/// capacités (recon N1), empreinte SHA-256 et attestation. Rappelle le
+/// confinement : les réseaux non sélectionnés restent hors d'atteinte.
+fn summarize_selection(selection: &TargetSelection) -> String {
+    let scope = selection.scope();
+    let mut lines: Vec<String> = Vec::new();
+    lines.push("Cible établie (voie A) — périmètre de session actif".to_string());
+    lines.push(format!("  Opérateur     : {}", scope.engagement.operator));
+    lines.push(format!("  Réseau        : {}", selection.network()));
+    lines.push(format!(
+        "  Fenêtre       : {} → {}",
+        scope.engagement.valid_from, scope.engagement.valid_until
+    ));
+    lines.push(
+        "  Capacités     : recon (N1) — actions offensives à activer explicitement".to_string(),
+    );
+    lines.push("  Mode d'audit  : standard".to_string());
+    lines.push(format!("  Empreinte SHA-256 : {}", scope.fingerprint()));
+    lines.push(format!(
+        "  Attestation   : {} sur {} (empreinte liée au scope)",
+        selection.attestation().operator,
+        selection.attestation().perimeter
+    ));
+    lines.push(
+        "Confinement : seul le réseau sélectionné est dans le périmètre ; les réseaux vus mais non sélectionnés (WiFi voisin, autre sous-réseau) restent hors d'atteinte."
+            .to_string(),
+    );
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
+}
+
+/// Résumé lisible d'une cible active désignée (voie A). Rappelle que « target
+/// host » affine la cible sans élargir le périmètre attesté.
+fn summarize_host(selection: &TargetSelection, host: std::net::IpAddr) -> String {
+    let scope = selection.scope();
+    let mut lines: Vec<String> = Vec::new();
+    lines.push("Cible active désignée (voie A)".to_string());
+    lines.push(format!("  Hôte actif    : {host}"));
+    lines.push(format!("  Réseau attesté : {}", selection.network()));
+    lines.push(format!("  Empreinte SHA-256 : {}", scope.fingerprint()));
+    lines.push(
+        "Le périmètre n'est pas élargi : « target host » n'affine que la cible active à l'intérieur du réseau attesté."
+            .to_string(),
+    );
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
 }
 
 // --- Voie C : mode laboratoire (`lab start`) --------------------------------
@@ -609,6 +915,193 @@ mod tests {
     fn dispatch_lab_sous_commande_inconnue_erreur() {
         let err = run(&["lab".to_string(), "bidon".to_string()]).unwrap_err();
         assert!(err.contains("sous-commande lab inconnue"), "{err}");
+    }
+
+    // --- Voie A : `target select` / `target host` ---------------------------
+
+    const SELECT_NET: &str = "192.168.56.0/24";
+
+    /// Chemin de journal jetable, isolé par tag et par PID (tests CLI voie A).
+    fn tmp_audit(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("nm-target-cli-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("audit.jsonl");
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    #[test]
+    fn target_select_atteste_etablit_le_perimetre() {
+        let out = target_select(
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            12,
+            None,
+            now(),
+        )
+        .unwrap();
+        assert!(out.contains("Cible établie (voie A)"), "{out}");
+        assert!(out.contains(SELECT_NET), "{out}");
+        assert!(out.contains("Empreinte SHA-256"), "{out}");
+        assert!(out.contains("recon (N1)"), "{out}");
+        assert!(out.contains("Mode d'audit  : standard"), "{out}");
+        assert!(out.contains("hors d'atteinte"), "{out}");
+    }
+
+    #[test]
+    fn target_select_sans_attestation_refuse() {
+        // §10.4 : attestation obligatoire — sans --attest, pas de périmètre.
+        let err = target_select(
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            false,
+            12,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("sélection refusée"), "{err}");
+        assert!(err.contains("attestation"), "{err}");
+    }
+
+    #[test]
+    fn target_select_cidr_malforme_refuse() {
+        // §10.4 : pas de sélection sans scope valide.
+        let err = target_select(
+            "192.168.56.0/99".to_string(),
+            "operateur".to_string(),
+            true,
+            12,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("refusé"), "{err}");
+    }
+
+    #[test]
+    fn target_select_journalise_l_attestation() {
+        // DoD US-A1 : l'attestation est journalisée (cible + identité), chaînée.
+        let path = tmp_audit("select");
+        let path_str = path.to_str().unwrap();
+        let out = target_select(
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            12,
+            Some(path_str),
+            now(),
+        )
+        .unwrap();
+        assert!(out.contains("Cible établie (voie A)"), "{out}");
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("target.attest"), "{content}");
+        assert!(content.contains("\"mode\":\"standard\""), "{content}");
+        assert!(content.contains(SELECT_NET), "{content}");
+        assert!(nickmare_core::audit::verify_file(&path).is_ok());
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn target_host_dans_le_reseau_atteste_designe_la_cible() {
+        let out = target_host(
+            "192.168.56.10".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            12,
+            None,
+            now(),
+        )
+        .unwrap();
+        assert!(out.contains("Cible active désignée (voie A)"), "{out}");
+        assert!(out.contains("192.168.56.10"), "{out}");
+        assert!(out.contains("n'affine que la cible active"), "{out}");
+    }
+
+    #[test]
+    fn target_host_hors_reseau_atteste_refuse_et_journalise() {
+        // §10.4 / US-B4 : hôte hors du réseau attesté → refus + audit blocked.
+        let path = tmp_audit("host-deny");
+        let path_str = path.to_str().unwrap();
+        let err = target_host(
+            "10.0.0.5".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            12,
+            Some(path_str),
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("hors du réseau attesté"), "{err}");
+
+        // Le refus est tracé (blocked_target), et la chaîne reste valide.
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("blocked_target"), "{content}");
+        assert!(content.contains("\"result\":\"blocked\""), "{content}");
+        assert!(nickmare_core::audit::verify_file(&path).is_ok());
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn target_host_sans_attestation_refuse() {
+        // Pas d'action sans scope établi : sans --attest, rien n'est désigné.
+        let err = target_host(
+            "192.168.56.10".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            false,
+            12,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("cible refusée"), "{err}");
+        assert!(err.contains("attestation"), "{err}");
+    }
+
+    #[test]
+    fn target_host_sans_reseau_erreur() {
+        let err = run_target(&["host".to_string(), "192.168.56.10".to_string()]).unwrap_err();
+        assert!(err.contains("réseau attesté manquant"), "{err}");
+    }
+
+    #[test]
+    fn target_host_ip_invalide_erreur() {
+        let err = target_host(
+            "pas-une-ip".to_string(),
+            SELECT_NET.to_string(),
+            "operateur".to_string(),
+            true,
+            12,
+            None,
+            now(),
+        )
+        .unwrap_err();
+        assert!(err.contains("adresse d'hôte invalide"), "{err}");
+    }
+
+    #[test]
+    fn dispatch_target_sans_sous_commande_erreur() {
+        let err = run(&["target".to_string()]).unwrap_err();
+        assert!(err.contains("sous-commande target manquante"), "{err}");
+    }
+
+    #[test]
+    fn dispatch_target_sous_commande_inconnue_erreur() {
+        let err = run(&["target".to_string(), "bidon".to_string()]).unwrap_err();
+        assert!(err.contains("sous-commande target inconnue"), "{err}");
+    }
+
+    #[test]
+    fn target_select_via_run_sans_reseau_erreur() {
+        let err = run_target(&["select".to_string(), "--attest".to_string()]).unwrap_err();
+        assert!(err.contains("réseau à sélectionner manquant"), "{err}");
     }
 
     // --- Vue carte textuelle : `map` ----------------------------------------
