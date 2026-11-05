@@ -4,6 +4,7 @@
 Rendu en mode ``--once`` (sans couleur) pour pouvoir vérifier le texte.
 Lancement : ``python .github/scripts/tests/test_run_dashboard.py``.
 """
+import json
 import os
 import re
 import subprocess
@@ -101,6 +102,52 @@ class DashboardTests(unittest.TestCase):
         (self.rdir / "titles.tsv").write_text("1\tPhase 0 · core::model\n", encoding="utf-8")
         out = dash(self.rid, "--once", env=self.env).stdout
         self.assertIn("core::model", out)
+
+    # --- Bannière de contrôle (issue #48) ------------------------------------
+    def _write_control(self, obj):
+        (self.rdir / "control.json").write_text(
+            obj if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False),
+            encoding="utf-8")
+
+    def test_banniere_pause_humaine(self):
+        self._write_control({
+            "signal": "pause", "author": "alice",
+            "pause": {"human": {"since": "2026-01-01T12:30:00Z",
+                                "by": "alice", "reason": "revue manuelle"}},
+        })
+        out = dash(self.rid, "--once", env=self.env).stdout
+        self.assertIn("PAUSE", out)
+        self.assertIn("alice", out)
+        self.assertIn("revue manuelle", out)
+
+    def test_banniere_arret(self):
+        self._write_control({"signal": "stop", "author": "bob",
+                             "stop_reason": "fin de journée", "pause": {}})
+        out = dash(self.rid, "--once", env=self.env).stdout
+        self.assertIn("ARRÊT", out)
+        self.assertIn("bob", out)
+
+    def test_banniere_quota(self):
+        self._write_control({
+            "signal": "pause", "author": "superviseur",
+            "pause": {"quota": {"since": "2026-01-01T12:00:00Z",
+                                "until": 4102444800.0,  # 2100 : toujours futur
+                                "until_iso": "2100-01-01T00:00:00Z",
+                                "reason": "fenêtre 5h"}},
+        })
+        out = dash(self.rid, "--once", env=self.env).stdout
+        self.assertIn("QUOTA", out)
+        self.assertIn("2100-01-01T00:00:00Z", out)
+
+    def test_banniere_absente_quand_run_tourne(self):
+        out = dash(self.rid, "--once", env=self.env).stdout
+        self.assertNotIn("PAUSE", out)
+        self.assertNotIn("ARRÊT", out)
+
+    def test_banniere_control_illisible_failsafe(self):
+        self._write_control("{ pas du json")
+        out = dash(self.rid, "--once", env=self.env).stdout
+        self.assertIn("ILLISIBLE", out)
 
 
 if __name__ == "__main__":
