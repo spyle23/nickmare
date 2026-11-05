@@ -2,17 +2,20 @@
 //!
 //! Phase 0, issue #3 : `nickmare scope validate <fichier>` (voie B, cf.
 //! `docs/ARCHITECTURE.md` §3). Phase 1, issue #11 : `nickmare lab start <cidr>…`
-//! (voie C, mode laboratoire). Les autres commandes (recon, scan, exploitation…)
-//! arrivent dans les phases suivantes. Un parseur d'arguments complet (`clap`)
-//! sera introduit quand la surface CLI grandira ; ici le dispatch reste
-//! volontairement minimal.
+//! (voie C, mode laboratoire). Phase 1, issue #9 : `nickmare map <carte.json>`
+//! (vue carte textuelle de la `NetworkMap`, US-B3). Les autres commandes (recon,
+//! scan, exploitation…) arrivent dans les phases suivantes. Un parseur
+//! d'arguments complet (`clap`) sera introduit quand la surface CLI grandira ;
+//! ici le dispatch reste volontairement minimal.
 
 use std::process::ExitCode;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use nickmare_core::audit::AuditLog;
 use nickmare_core::lab::LabSession;
+use nickmare_core::model::NetworkMap;
 use nickmare_core::scope::{Capability, Scope, TemporalStatus};
+use nickmare_net::map::render_map;
 
 /// Durée par défaut de la fenêtre d'un lab (heures) si `--hours` est absent.
 const DEFAULT_LAB_HOURS: i64 = 12;
@@ -29,11 +32,14 @@ fn usage() -> String {
         "  nickmare scope validate <fichier> [--trusted-key <hex> | --trusted-key-file <chemin>]",
         "  nickmare lab start <cidr> [<cidr>...] [--operator <id>] [--hours <n>]",
         "                      [--confirm-non-isolated] [--audit <chemin>]",
+        "  nickmare map <carte.json>",
         "",
         "scope validate : valide un fichier de scope (voie B) — résumé + empreinte SHA-256,",
         "                 ou refus clair (code de sortie ≠ 0).",
         "lab start      : établit un périmètre de laboratoire (voie C) sur un ou plusieurs",
         "                 sous-réseaux ; attestation unique, N1–N4 débloqués, mode = \"lab\".",
+        "map            : affiche la carte réseau (NetworkMap) en texte — hôtes, rôles,",
+        "                 services, hôtes compromis et chemins de pivot (US-B3).",
     ];
     format!("{}\n{}\n", banniere(), lines.join("\n"))
 }
@@ -58,6 +64,7 @@ fn run(args: &[String]) -> Result<String, String> {
     match args.first().map(String::as_str) {
         Some("scope") => run_scope(&args[1..]),
         Some("lab") => run_lab(&args[1..]),
+        Some("map") => run_map(&args[1..]),
         Some("--version" | "-V") => Ok(format!("{}\n", banniere())),
         Some("--help" | "-h") | None => Ok(usage()),
         Some(other) => Err(format!("commande inconnue : {other}\n\n{}", usage())),
@@ -381,6 +388,45 @@ fn summarize_lab(session: &LabSession) -> String {
     out
 }
 
+// --- Vue carte textuelle (`map`) --------------------------------------------
+
+fn run_map(args: &[String]) -> Result<String, String> {
+    let mut path: Option<&str> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            other if other.starts_with('-') => {
+                return Err(format!("option inconnue : {other}\n\n{}", usage()));
+            }
+            positional => {
+                if path.is_some() {
+                    return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+                }
+                path = Some(positional);
+                index += 1;
+            }
+        }
+    }
+
+    let Some(path) = path else {
+        return Err(format!("fichier de carte manquant\n\n{}", usage()));
+    };
+    let content = std::fs::read_to_string(path)
+        .map_err(|err| format!("impossible de lire {path} : {err}"))?;
+    render_map_json(&content)
+}
+
+/// Désérialise une `NetworkMap` (JSON) et en renvoie la vue carte textuelle, ou
+/// un refus clair si le contenu est illisible. La construction de la carte (via
+/// `discover`) et sa persistance arrivent avec l'implémentation réseau réelle
+/// (#8) ; ici on rend une carte déjà produite — logique pure, testable.
+fn render_map_json(content: &str) -> Result<String, String> {
+    let map: NetworkMap = serde_json::from_str(content)
+        .map_err(|err| format!("carte réseau illisible : {err}"))?;
+    Ok(render_map(&map))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -563,5 +609,42 @@ mod tests {
     fn dispatch_lab_sous_commande_inconnue_erreur() {
         let err = run(&["lab".to_string(), "bidon".to_string()]).unwrap_err();
         assert!(err.contains("sous-commande lab inconnue"), "{err}");
+    }
+
+    // --- Vue carte textuelle : `map` ----------------------------------------
+
+    const MAP: &str = include_str!("../../../testdata/mock/network_map.json");
+
+    #[test]
+    fn map_rend_la_carte_hotes_compromis_et_pivots() {
+        let out = render_map_json(MAP).unwrap();
+        assert!(out.contains("Carte réseau — périmètre 192.168.56.0/24"), "{out}");
+        // Hôtes et leurs champs.
+        assert!(out.contains("192.168.56.1 — passerelle"), "{out}");
+        assert!(out.contains("gw.lab"), "{out}");
+        assert!(out.contains("192.168.56.10 — serveur"), "{out}");
+        assert!(out.contains("22/tcp ssh (OpenSSH 9.6)"), "{out}");
+        assert!(out.contains("80/tcp http (nginx)"), "{out}");
+        // Hôte compromis et chemin de pivot visuellement distincts.
+        assert!(out.contains("[COMPROMIS]"), "{out}");
+        assert!(out.contains("192.168.56.10 → 192.168.56.20  (via ssh"), "{out}");
+    }
+
+    #[test]
+    fn map_json_malforme_refuse() {
+        let err = render_map_json("{ pas du json").unwrap_err();
+        assert!(err.contains("carte réseau illisible"), "{err}");
+    }
+
+    #[test]
+    fn map_sans_fichier_erreur() {
+        let err = run_map(&[]).unwrap_err();
+        assert!(err.contains("fichier de carte manquant"), "{err}");
+    }
+
+    #[test]
+    fn map_fichier_introuvable_erreur() {
+        let err = run_map(&["chemin/inexistant/carte.json".to_string()]).unwrap_err();
+        assert!(err.contains("impossible de lire"), "{err}");
     }
 }
