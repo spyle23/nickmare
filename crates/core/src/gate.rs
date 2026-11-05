@@ -81,7 +81,11 @@ pub enum Action {
     Exploit { target: IpAddr, mode: ExploitMode },
     /// Craquage de credentials (N3). `online` = spray en ligne (risque de
     /// verrouillage) ciblant éventuellement un `account` ; sinon hors-ligne.
-    Crack { target: IpAddr, online: bool, account: Option<String> },
+    Crack {
+        target: IpAddr,
+        online: bool,
+        account: Option<String>,
+    },
     /// Émulation d'adversaire (N4) : exécution d'une technique ATT&CK.
     Emulate { target: IpAddr, technique: String },
 }
@@ -125,8 +129,14 @@ impl Action {
     pub fn verb(&self) -> String {
         match self {
             Action::Recon { .. } => "recon.active".to_string(),
-            Action::Exploit { mode: ExploitMode::Validate, .. } => "exploit.validate".to_string(),
-            Action::Exploit { mode: ExploitMode::Exploit, .. } => "exploit.run".to_string(),
+            Action::Exploit {
+                mode: ExploitMode::Validate,
+                ..
+            } => "exploit.validate".to_string(),
+            Action::Exploit {
+                mode: ExploitMode::Exploit,
+                ..
+            } => "exploit.run".to_string(),
             Action::Crack { online: true, .. } => "crack.spray".to_string(),
             Action::Crack { online: false, .. } => "crack.offline".to_string(),
             Action::Emulate { technique, .. } => format!("emulation.{technique}"),
@@ -253,7 +263,10 @@ impl fmt::Display for DenyReason {
                 write!(f, "confirmation humaine requise et non fournie")
             }
             DenyReason::Destructive => {
-                write!(f, "charge destructrice refusée (destructive_checks = false)")
+                write!(
+                    f,
+                    "charge destructrice refusée (destructive_checks = false)"
+                )
             }
             DenyReason::RateExceeded => write!(f, "débit max_rate_pps dépassé"),
             DenyReason::MaxActionsExceeded => write!(f, "plafond max_actions atteint"),
@@ -538,7 +551,9 @@ impl Gate {
         // Étape 4 — pré-conditions (inchangé en labo).
         let capability = action.capability();
         if level_ordinal(capability) >= 2 {
-            let met = req.progress.is_some_and(|p| p.has_lower_than(target, capability));
+            let met = req
+                .progress
+                .is_some_and(|p| p.has_lower_than(target, capability));
             if !met {
                 return Decision::Deny(DenyReason::PreconditionMissing);
             }
@@ -597,7 +612,10 @@ impl Gate {
             self.actions_used = self.actions_used.saturating_add(1);
         }
         if let Some(account) = online_spray_account(action) {
-            let counter = self.attempts_per_account.entry(account.to_string()).or_insert(0);
+            let counter = self
+                .attempts_per_account
+                .entry(account.to_string())
+                .or_insert(0);
             *counter = counter.saturating_add(1);
         }
 
@@ -680,7 +698,11 @@ fn confirmation_required(scope: &Scope, action: &Action, lab: bool) -> bool {
 /// spray en ligne compte dans `max_attempts_per_account`).
 fn online_spray_account(action: &Action) -> Option<&str> {
     match action {
-        Action::Crack { online: true, account: Some(account), .. } => Some(account.as_str()),
+        Action::Crack {
+            online: true,
+            account: Some(account),
+            ..
+        } => Some(account.as_str()),
         _ => None,
     }
 }
@@ -866,7 +888,10 @@ attack_techniques = [\"T1021\"]
     }
 
     fn exploit(target: &str, mode: ExploitMode) -> Action {
-        Action::Exploit { target: ip(target), mode }
+        Action::Exploit {
+            target: ip(target),
+            mode,
+        }
     }
 
     fn crack(target: &str, online: bool, account: Option<&str>) -> Action {
@@ -899,11 +924,16 @@ attack_techniques = [\"T1021\"]
     }
 
     fn attested_prog<'a>(att: &'a Attestation, prog: &'a Progress) -> Request<'a> {
-        Request::new(now_ok(), OP).with_attestation(att).with_progress(prog)
+        Request::new(now_ok(), OP)
+            .with_attestation(att)
+            .with_progress(prog)
     }
 
     fn full<'a>(att: &'a Attestation, prog: &'a Progress) -> Request<'a> {
-        Request::new(now_ok(), OP).with_attestation(att).with_progress(prog).confirmed()
+        Request::new(now_ok(), OP)
+            .with_attestation(att)
+            .with_progress(prog)
+            .confirmed()
     }
 
     /// Progression recon aboutie sur un hôte (débloque les pré-conditions N≥2).
@@ -930,7 +960,10 @@ attack_techniques = [\"T1021\"]
         let sc = scope();
         let att = attest(&sc);
         let mut gate = Gate::with_scope(sc, AuditMode::Standard);
-        assert_eq!(gate.check(&recon("192.168.10.25"), &attested(&att)), Decision::Allow);
+        assert_eq!(
+            gate.check(&recon("192.168.10.25"), &attested(&att)),
+            Decision::Allow
+        );
     }
 
     #[test]
@@ -967,7 +1000,10 @@ attack_techniques = [\"T1021\"]
         let att = attest(&sc);
         let mut gate = Gate::with_scope(sc, AuditMode::Standard);
         // 192.168.50.5 est un hôte listé explicitement.
-        assert_eq!(gate.check(&recon("192.168.50.5"), &attested(&att)), Decision::Allow);
+        assert_eq!(
+            gate.check(&recon("192.168.50.5"), &attested(&att)),
+            Decision::Allow
+        );
     }
 
     #[test]
@@ -1072,7 +1108,10 @@ attack_techniques = [\"T1021\"]
         let prog = recon_done("192.168.10.25");
         let mut gate = Gate::with_scope(sc, AuditMode::Standard);
         let action = emulate("192.168.10.25", "T1021");
-        assert_eq!(gate.check(&action, &attested_prog(&att, &prog)), Decision::Allow);
+        assert_eq!(
+            gate.check(&action, &attested_prog(&att, &prog)),
+            Decision::Allow
+        );
     }
 
     #[test]
@@ -1096,7 +1135,10 @@ attack_techniques = [\"T1021\"]
         let mut gate = Gate::with_scope(sc, AuditMode::Standard);
         // Pas de confirmation : le craquage hors-ligne n'en exige pas.
         let action = crack("192.168.50.5", false, None);
-        assert_eq!(gate.check(&action, &attested_prog(&att, &prog)), Decision::Allow);
+        assert_eq!(
+            gate.check(&action, &attested_prog(&att, &prog)),
+            Decision::Allow
+        );
     }
 
     // --- Étape 4 : pré-conditions -------------------------------------------
@@ -1134,7 +1176,10 @@ attack_techniques = [\"T1021\"]
         let att = attest(&sc);
         let mut gate = Gate::with_scope(sc, AuditMode::Standard);
         // Pas de progression : la recon (N1) passe quand même.
-        assert_eq!(gate.check(&recon("192.168.10.25"), &attested(&att)), Decision::Allow);
+        assert_eq!(
+            gate.check(&recon("192.168.10.25"), &attested(&att)),
+            Decision::Allow
+        );
     }
 
     // --- Étape 5 : confirmation humaine -------------------------------------
@@ -1161,7 +1206,10 @@ attack_techniques = [\"T1021\"]
         let mut gate = Gate::with_scope(sc, AuditMode::Standard);
         // Mode auto : pas de confirmation, et pourtant autorisé.
         let action = exploit("192.168.10.25", ExploitMode::Validate);
-        assert_eq!(gate.check(&action, &attested_prog(&att, &prog)), Decision::Allow);
+        assert_eq!(
+            gate.check(&action, &attested_prog(&att, &prog)),
+            Decision::Allow
+        );
     }
 
     // --- Étape 6 : garde anti-destruction -----------------------------------
@@ -1257,7 +1305,10 @@ attack_techniques = [\"T1021\"]
         let req = attested_at(now_ok(), &att);
         let hors_scope = recon("10.0.0.1");
         for _ in 0..5 {
-            assert_eq!(gate.check(&hors_scope, &req), Decision::Deny(DenyReason::OutOfScope));
+            assert_eq!(
+                gate.check(&hors_scope, &req),
+                Decision::Deny(DenyReason::OutOfScope)
+            );
         }
         // Le seul jeton est encore là pour une action légitime.
         assert_eq!(gate.check(&recon("192.168.10.25"), &req), Decision::Allow);
@@ -1314,7 +1365,10 @@ attack_techniques = [\"T1021\"]
         // Hors fenêtre temporelle (2025 < valid_from) ET hors scope (10.0.0.1).
         let req = attested_at(at(2025, 1, 1, 12), &att);
         let out = gate.check(&recon("10.0.0.1"), &req);
-        assert_eq!(out, Decision::Deny(DenyReason::OutsideWindow(TemporalStatus::NotYetValid)));
+        assert_eq!(
+            out,
+            Decision::Deny(DenyReason::OutsideWindow(TemporalStatus::NotYetValid))
+        );
     }
 
     // --- Spécificité du mode labo (§3.2 note) -------------------------------
@@ -1329,7 +1383,10 @@ attack_techniques = [\"T1021\"]
         let mut gate = Gate::with_scope(sc, AuditMode::Lab);
         // Hors allowed_hosts, pas de confirmation, pourtant autorisé en labo.
         let action = exploit("192.168.10.30", ExploitMode::Validate);
-        assert_eq!(gate.check(&action, &attested_prog(&att, &prog)), Decision::Allow);
+        assert_eq!(
+            gate.check(&action, &attested_prog(&att, &prog)),
+            Decision::Allow
+        );
     }
 
     #[test]
