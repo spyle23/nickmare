@@ -1,0 +1,22 @@
+# Scope de test portant un bloc [integrity] (voie B, engagement signé).
+# La clé de confiance ed25519 est fournie HORS fichier (--trusted-key) : charger
+# un scope signé sans clé doit être refusé. La signature ci-dessous est factice
+# (octets nuls) : elle sert à prouver qu'un scope signé exige une clé, pas à
+# vérifier une signature réelle (test couvert en code, cf. crates/core).
+
+[engagement]
+client        = "Signed Corp"
+reference     = "PENTEST-2026-099"
+authorized_by = "DSI — mandat signé"
+operator      = "operateur@example.test"
+valid_from    = "2026-01-01T00:00:00Z"
+valid_until   = "2027-12-31T23:59:59Z"
+
+[targets]
+networks = ["192.168.10.0/24"]
+
+[capabilities]
+recon = true
+
+[integrity]
+signature = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"

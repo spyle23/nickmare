@@ -11,3 +11,7 @@ name = "nickmare"
 path = "src/main.rs"
 
 [dependencies]
+# Logique métier pure (scope, modèle). Le binaire orchestre et affiche.
+nickmare-core = { path = "../core" }
+# Horloge (`Utc::now()`) pour la validation temporelle au moment de l'appel.
+chrono = "0.4.38"

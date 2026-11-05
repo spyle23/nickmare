@@ -10,10 +10,32 @@ serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 chrono = { version = "0.4.38", features = ["serde"] }
 async-trait = "0.1.83"
-# Hachage du journal d'audit chaîné (issue #5, §3.3) : SHA-256 pour le chaînage
-# d'intégrité. Brique cryptographique éprouvée (RustCrypto) plutôt qu'une
-# implémentation maison — la ligne 0.10 reste compatible MSRV 1.83.
+# Hachage du journal d'audit chaîné (issue #5, §3.3) et empreinte SHA-256 du
+# scope (issue #3) : SHA-256 pour le chaînage d'intégrité et le hash de scope.
+# Brique cryptographique éprouvée (RustCrypto) plutôt qu'une implémentation
+# maison — la ligne 0.10 reste compatible MSRV 1.83.
 sha2 = "0.10.8"
+
+# Scope (issue #3) : désérialisation TOML et signature ed25519.
+#
+# basic-toml (et non `toml`) : parseur TOML serde minimaliste, sans la pile
+# toml_edit → indexmap → hashbrown. hashbrown récent exige la feature Cargo
+# `edition2024` (rustc ≥ 1.85), incompatible avec la toolchain épinglée 1.83 et
+# l'absence de Cargo.lock. basic-toml ne dépend que de serde → arbre MSRV sûr.
+basic-toml = "0.1"
+# ed25519-dalek figé (=) : la toolchain est épinglée à 1.83 (rust-toolchain.toml)
+# et le dépôt n'a pas de Cargo.lock ; on fige la version de vérification de
+# signature à un arbre connu compatible 1.83 pour un build reproductible.
+ed25519-dalek = "=2.1.1"
+# Épinglage de dépendances TRANSITIVES d'ed25519-dalek. Sans Cargo.lock, cargo
+# résout chaque dépendance (même optionnelle, non compilée) à sa dernière
+# version compatible et en parse le manifeste : base64ct ≥ 1.8 et zeroize ≥ 1.9
+# sont passés à `edition2024` (rust-version 1.85), que cargo 1.83 ne sait pas
+# parser (« feature `edition2024` is required »). On fige la dernière ligne
+# restée en edition 2021 : base64ct 1.7.x (MSRV 1.81) et zeroize 1.8.x (MSRV
+# 1.60), toutes deux dans l'intervalle semver requis par la pile ed25519.
+base64ct = "=1.7.3"
+zeroize = "=1.8.2"
 
 # tokio figé (=) : les versions récentes relèvent leur MSRV au-dessus de la
 # toolchain épinglée (rust-toolchain.toml = 1.83). 1.40 reste compatible. En
