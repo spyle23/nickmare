@@ -93,6 +93,8 @@ jobs:
         run: python .github/scripts/tests/test_run_dashboard.py
       - name: Tests du superviseur de run (run_supervise.py — quota/reprise)
         run: python .github/scripts/tests/test_run_supervise.py
+      - name: Tests de la veille & du préflight (run_supervise.py — issue #50)
+        run: python .github/scripts/tests/test_run_veille.py
       - name: Tests du lanceur de run (run-jalon.sh)
         run: bash .github/scripts/tests/run-jalon.test.sh
 

@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(cargo:*)",
+      "Bash(scripts/*)",
+      "Bash(./scripts/*)",
+      "Bash(bash scripts/*)",
+      "Bash(sh scripts/*)",
+      "Bash(python scripts/*)",
+      "Bash(python3 scripts/*)",
+      "Bash(bash .github/scripts/*)",
+      "Bash(sh .github/scripts/*)",
+      "Bash(python .github/scripts/*)",
+      "Bash(python3 .github/scripts/*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push -u origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push origin main)",
+      "Bash(git reset --hard:*)",
+      "Bash(gh repo delete:*)"
+    ]
+  }
+}
