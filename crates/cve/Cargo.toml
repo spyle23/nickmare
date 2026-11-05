@@ -6,3 +6,33 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
+# Modèle partagé : `Service` (produit/version identifiés par #13), `Finding` et
+# `Severity` (constats de vulnérabilité produits par la corrélation). La crate
+# `cve` ne dépend QUE de `core` : elle consomme le `Service` déjà identifié, sans
+# réimplémenter l'identification (#13) ni ouvrir la moindre socket.
+nickmare-core = { path = "../core" }
+
+# Désérialisation du flux NVD (format API 2.0) et de la base/cache locale, puis
+# sérialisation du cache sur disque. Mêmes versions que `core` (arbre MSRV 1.83
+# déjà éprouvé, sans Cargo.lock) : aucune nouvelle dépendance risquée n'est tirée.
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+
+# Trait `NvdClient` asynchrone et objet-sûr : l'abstraction injectable du client
+# NVD en ligne (bouchonnée dans les tests, implémentation réseau réelle hors CI).
+# Même version que `core`/`net`, qui l'utilisent déjà → arbre MSRV 1.83 sûr.
+async-trait = "0.1.83"
+
+# tokio figé (=) comme dans `core`/`net` : les versions récentes relèvent leur
+# MSRV au-dessus de la toolchain épinglée (1.83). En dev-dependency seulement :
+# runtime des tests du client bouchonné, aucune I/O réseau.
+[dev-dependencies]
+tokio = { version = "=1.40.0", features = ["macros", "rt"] }
+# Horodatage figé pour construire un `Host` dans les tests de corrélation (le
+# champ `first_seen` est un `DateTime<Utc>`). Même version que `core`, qui en
+# dépend déjà → arbre MSRV 1.83 sûr. Jamais d'horloge réelle dans les tests.
+chrono = { version = "0.4.38", features = ["serde"] }
+# Test d'intégration de la chaîne #13 → #14 : l'identification de services (pure)
+# produit un `Service`, que la corrélation consomme. Dev-dependency uniquement
+# (déjà dans le workspace, aucune nouvelle dépendance externe tirée).
+nickmare-net = { path = "../net" }

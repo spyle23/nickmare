@@ -1,0 +1,62 @@
+{
+  "refreshed_at": "2026-11-05T00:00:00Z",
+  "records": [
+    {
+      "id": "CVE-2023-38408",
+      "description": "Synthetic test fixture: a flaw in the PKCS#11 feature of ssh-agent allows remote code execution under certain conditions.",
+      "cvss": {
+        "base_score": 9.8,
+        "base_severity": "CRITICAL",
+        "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "metric_version": "3.1"
+      },
+      "affected": [
+        {
+          "product": "openssh",
+          "vendor": "openbsd",
+          "range": { "end_excluding": "9.3p2" }
+        }
+      ],
+      "published": "2023-07-20T02:15:09.303",
+      "last_modified": "2024-02-14T18:15:45.503"
+    },
+    {
+      "id": "CVE-2021-23017",
+      "description": "Synthetic test fixture: an off-by-one in the nginx resolver may allow memory corruption via crafted DNS responses.",
+      "cvss": {
+        "base_score": 7.7,
+        "base_severity": "HIGH",
+        "vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "metric_version": "3.1"
+      },
+      "affected": [
+        {
+          "product": "nginx",
+          "vendor": "nginx",
+          "range": { "start_including": "0.6.18", "end_excluding": "1.20.1" }
+        }
+      ],
+      "published": "2021-05-26T16:15:08.330",
+      "last_modified": "2023-11-07T03:30:00.000"
+    },
+    {
+      "id": "CVE-2011-2523",
+      "description": "Synthetic test fixture: a backdoor was present in a specific vsftpd release, granting a root shell.",
+      "cvss": {
+        "base_score": 10.0,
+        "base_severity": "HIGH",
+        "vector": "AV:N/AC:L/Au:N/C:C/I:C/A:C",
+        "metric_version": "2.0"
+      },
+      "affected": [
+        {
+          "product": "vsftpd",
+          "vendor": "vsftpd_project",
+          "range": { "exact": "2.3.4" }
+        }
+      ],
+      "published": "2011-07-04T17:55:01.123",
+      "last_modified": "2021-06-06T11:15:10.000"
+    }
+  ]
+}

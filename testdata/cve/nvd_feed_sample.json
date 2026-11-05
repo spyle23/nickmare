@@ -1,0 +1,144 @@
+{
+  "resultsPerPage": 3,
+  "totalResults": 3,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2023-38408",
+        "published": "2023-07-20T02:15:09.303",
+        "lastModified": "2024-02-14T18:15:45.503",
+        "descriptions": [
+          {
+            "lang": "fr",
+            "value": "Fixture synthetique : description non anglaise ignoree au profit de l'anglaise."
+          },
+          {
+            "lang": "en",
+            "value": "Synthetic test fixture: a flaw in the PKCS#11 feature of ssh-agent allows remote code execution under certain conditions."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "cvssData": {
+                "version": "3.1",
+                "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                "baseScore": 9.8,
+                "baseSeverity": "CRITICAL"
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:openbsd:openssh:*:*:*:*:*:*:*:*",
+                    "versionEndExcluding": "9.3p2"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2021-23017",
+        "published": "2021-05-26T16:15:08.330",
+        "lastModified": "2023-11-07T03:30:00.000",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "Synthetic test fixture: an off-by-one in the nginx resolver may allow memory corruption via crafted DNS responses."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "cvssData": {
+                "version": "3.1",
+                "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                "baseScore": 7.7,
+                "baseSeverity": "HIGH"
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:nginx:nginx:*:*:*:*:*:*:*:*",
+                    "versionStartIncluding": "0.6.18",
+                    "versionEndExcluding": "1.20.1"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2011-2523",
+        "published": "2011-07-04T17:55:01.123",
+        "lastModified": "2021-06-06T11:15:10.000",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "Synthetic test fixture: a backdoor was present in a specific vsftpd release, granting a root shell."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV2": [
+            {
+              "source": "nvd@nist.gov",
+              "type": "Primary",
+              "cvssData": {
+                "version": "2.0",
+                "vectorString": "AV:N/AC:L/Au:N/C:C/I:C/A:C",
+                "baseScore": 10.0
+              },
+              "baseSeverity": "HIGH"
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "operator": "OR",
+                "negate": false,
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:vsftpd_project:vsftpd:2.3.4:*:*:*:*:*:*:*"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
