@@ -62,6 +62,7 @@ use chrono::{DateTime, Utc};
 
 use crate::audit::{AuditMode, AuditRecord, CapabilityLevel};
 use crate::model::ExploitMode;
+use crate::rate::TokenBucket;
 use crate::scope::{Capability, ExploitRunMode, Scope, TemporalStatus};
 
 // --- Action -----------------------------------------------------------------
@@ -407,55 +408,6 @@ impl<'a> Request<'a> {
     pub fn with_progress(mut self, progress: &'a Progress) -> Self {
         self.progress = Some(progress);
         self
-    }
-}
-
-// --- Token bucket (étape 7, max_rate_pps) -----------------------------------
-
-/// Seau à jetons pour `max_rate_pps` : capacité = débit, remplissage linéaire au
-/// même débit. Chaque action active consomme un jeton. Déterministe vis-à-vis de
-/// l'instant fourni (testable sans horloge réelle).
-#[derive(Debug, Clone)]
-struct TokenBucket {
-    capacity: f64,
-    rate_per_sec: f64,
-    tokens: f64,
-    last: Option<DateTime<Utc>>,
-}
-
-impl TokenBucket {
-    /// Seau plein pour un débit de `pps` paquets/seconde.
-    fn new(pps: u32) -> Self {
-        let capacity = f64::from(pps);
-        Self {
-            capacity,
-            rate_per_sec: capacity,
-            tokens: capacity,
-            last: None,
-        }
-    }
-
-    /// Jetons disponibles à l'instant `now`, après remplissage (sans mutation).
-    fn refilled(&self, now: DateTime<Utc>) -> f64 {
-        match self.last {
-            // Jamais utilisé : le seau est plein.
-            None => self.capacity,
-            Some(last) => {
-                let elapsed_secs = (now - last).num_milliseconds().max(0) as f64 / 1000.0;
-                (self.tokens + elapsed_secs * self.rate_per_sec).min(self.capacity)
-            }
-        }
-    }
-
-    /// Vrai s'il reste au moins un jeton à l'instant `now`.
-    fn available(&self, now: DateTime<Utc>) -> bool {
-        self.refilled(now) >= 1.0
-    }
-
-    /// Consomme un jeton à l'instant `now` (remplit puis retranche).
-    fn consume(&mut self, now: DateTime<Utc>) {
-        self.tokens = (self.refilled(now) - 1.0).max(0.0);
-        self.last = Some(now);
     }
 }
 
