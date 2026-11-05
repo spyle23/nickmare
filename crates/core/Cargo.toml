@@ -11,6 +11,14 @@ serde_json = "1.0.128"
 chrono = { version = "0.4.38", features = ["serde"] }
 async-trait = "0.1.83"
 
+# Scope (issue #3) : désérialisation TOML, empreinte SHA-256 et signature ed25519.
+toml = "0.8"
+sha2 = "0.10"
+# ed25519-dalek figé (=) : la toolchain est épinglée à 1.83 (rust-toolchain.toml)
+# et le dépôt n'a pas de Cargo.lock ; on fige la version de vérification de
+# signature à un arbre connu compatible 1.83 pour un build reproductible.
+ed25519-dalek = "=2.1.1"
+
 # tokio figé (=) : les versions récentes relèvent leur MSRV au-dessus de la
 # toolchain épinglée (rust-toolchain.toml = 1.83). 1.40 reste compatible. En
 # dev-dependency seulement : runtime des tests, aucune I/O réseau.
