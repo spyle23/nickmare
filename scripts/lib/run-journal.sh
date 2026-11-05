@@ -38,5 +38,16 @@ nm_run_init()  { _nm_journal init "$@"; }
 nm_run_dir()   { _nm_journal dir "$@"; }
 nm_log_phase() { _nm_journal log "$@"; }
 
+# Contrôle du run (issue #48) : pause / arrêt / quota et point de contrôle `gate`.
+# `nm_gate` renvoie le code de sortie de la décision (0 continuer · 1 pause · 2
+# arrêt · 3 plus rien à faire · 4 quota épuisé) : l'orchestrateur l'appelle avant
+# chaque lot et applique le code. Les autres délèguent tel quel au Python.
+nm_pause()   { _nm_journal pause "$@"; }
+nm_unpause() { _nm_journal unpause "$@"; }
+nm_stop()    { _nm_journal stop "$@"; }
+nm_status()  { _nm_journal status "$@"; }
+nm_gate()    { _nm_journal gate "$@"; }
+nm_quota()   { _nm_journal quota "$@"; }
+
 # Horodatage ISO 8601 UTC — conservé pour d'éventuels appelants historiques.
 nm_now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }

@@ -111,6 +111,47 @@ def meta_value(run_dir: Path, key: str) -> str:
         return ""
 
 
+def control_banner(run_dir: Path, paint: "_Painter", now: datetime) -> list[str]:
+    """Bannière de contrôle (pause / arrêt / quota) ou liste vide si le run tourne.
+
+    Lecture seule et fail-safe : un ``control.json`` illisible n'affiche pas une
+    fausse normalité — il annonce que ``gate`` rendra « pause » (cf. issue #48).
+    """
+    try:
+        control = run_journal.load_control(run_dir)
+    except run_journal.ControlCorrupt:
+        return [paint(31, "control.json ILLISIBLE — gate rendra « pause » (fail-safe)")]
+
+    lines: list[str] = []
+    if control.get("signal") == "stop":
+        who = control.get("author") or "?"
+        txt = f"ARRÊT demandé par {who} — ne lancer aucun agent, clore le run"
+        if control.get("stop_reason"):
+            txt += f" ({control['stop_reason']})"
+        lines.append(paint(31, txt))
+
+    pause = control.get("pause", {})
+    quota = pause.get("quota")
+    if isinstance(quota, dict):
+        hold = run_journal.quota_hold_active(control, now=now.timestamp())
+        if hold:
+            left = float(quota["until"]) - now.timestamp()
+            lines.append(paint(33, f"QUOTA épuisé — reprise prévue à "
+                                   f"{quota.get('until_iso', '?')} "
+                                   f"(dans {run_journal.human_delta(left)})"))
+        else:
+            lines.append(paint(90, f"quota expiré (fenêtre rouverte) — "
+                                   f"à purger : reprise était {quota.get('until_iso', '?')}"))
+
+    human = pause.get("human")
+    if isinstance(human, dict):
+        txt = f"PAUSE (humaine) par {human.get('by', '?')} depuis {human.get('since', '?')}"
+        if human.get("reason"):
+            txt += f" — {human['reason']}"
+        lines.append(paint(33, txt))
+    return lines
+
+
 # --- Formatage ---------------------------------------------------------------
 
 
@@ -171,6 +212,8 @@ def render(journal: Path, run_dir: Path, *, now: datetime | None = None,
     if started:
         header += paint(90, "   démarré ") + started
     out.append(header)
+    for banner in control_banner(run_dir, paint, now):
+        out.append(banner)
     out.append(RULE)
 
     done = blocked = 0
