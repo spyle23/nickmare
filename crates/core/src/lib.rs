@@ -2,10 +2,11 @@
 //!
 //! Elle regroupe les types partagés par tous les niveaux (`model`), le
 //! chargement/validation du périmètre (`scope`), le journal d'audit chaîné
-//! (`audit`) et les traits d'abstraction (`traits`) ; elle accueillera dans les
-//! tickets suivants les garde-fous (le « mur », cf. `docs/ARCHITECTURE.md` §6).
+//! (`audit`), les garde-fous obligatoires (`gate`, le « mur », cf.
+//! `docs/ARCHITECTURE.md` §3.2) et les traits d'abstraction (`traits`).
 
 pub mod audit;
+pub mod gate;
 pub mod model;
 pub mod scope;
 pub mod traits;
