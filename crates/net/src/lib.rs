@@ -19,17 +19,22 @@
 //! - [`icmp`] / [`arp`] : construction/analyse pures des paquets (+ émission ICMP
 //!   brute Linux derrière l'abstraction).
 //!
+//! Le **scan de ports** (#8+, Phase 2) prolonge ce socle dans [`portscan`] :
+//! recon **active** (confinée au gate), TCP connect réutilisant le provider, UDP
+//! basique portable, et SYN demi-ouvert pur + brut Linux (labo).
+//!
 //! Tout ce qui touche une socket réelle ou un privilège est soit **portable et
-//! testé en loopback** (repli TCP), soit **isolé derrière une abstraction** et
-//! réservé au labo (émission brute), de sorte que la CI reste verte sans réseau
-//! ni root (Windows + Linux). Scan de ports, identification de services et WiFi
-//! passif suivent dans les phases suivantes.
+//! testé en loopback** (repli TCP, UDP), soit **isolé derrière une abstraction**
+//! et réservé au labo (émission brute ARP/ICMP/SYN), de sorte que la CI reste
+//! verte sans réseau ni root (Windows + Linux). Identification de services et
+//! WiFi passif suivent dans les phases suivantes.
 
 pub mod arp;
 pub mod discovery;
 pub mod icmp;
 pub mod interfaces;
 pub mod map;
+pub mod portscan;
 pub mod privilege;
 pub mod probe;
 pub mod provider;
