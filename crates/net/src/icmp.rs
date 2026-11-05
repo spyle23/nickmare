@@ -241,7 +241,10 @@ mod linux {
 
     /// Vrai si l'erreur d'I/O est un dépassement de délai de lecture.
     fn is_timeout(err: &io::Error) -> bool {
-        matches!(err.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut)
+        matches!(
+            err.kind(),
+            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+        )
     }
 
     /// Émetteur de sondes ICMP brutes (le mode privilégié de la découverte).
@@ -318,7 +321,8 @@ mod tests {
     #[test]
     fn parsing_defensif_sans_panique() {
         assert!(parse_ipv4_echo_reply(&[]).is_none());
-        assert!(parse_ipv4_echo_reply(&[0x45]).is_none()); // tronqué
+        // Paquet tronqué : refusé.
+        assert!(parse_ipv4_echo_reply(&[0x45]).is_none());
         // Une requête (type 8) n'est pas une réponse.
         let mut request = vec![0x45];
         request.extend_from_slice(&[0u8; 19]);

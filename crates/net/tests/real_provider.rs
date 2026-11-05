@@ -84,8 +84,8 @@ async fn port_ferme_na_pas_de_service() {
 
 #[tokio::test]
 async fn cible_silencieuse_respecte_le_timeout_de_lecture() {
-    // Cible lente/coupée : accepte mais n'émet jamais rien (§11.4).
-    let (port, _listener) = bound_listener(); // jamais d'écriture côté serveur
+    // Cible lente/coupée : liée mais n'émet jamais rien côté serveur (§11.4).
+    let (port, _listener) = bound_listener();
     // Connexion permise, lecture bornée très court (cible muette).
     let timeouts = Timeouts::new(Duration::from_millis(500), Duration::from_millis(200));
     let provider = RealNetworkProvider::new().with_timeouts(timeouts);
@@ -97,7 +97,10 @@ async fn cible_silencieuse_respecte_le_timeout_de_lecture() {
     // Port ouvert mais muet : service nommé, sans bannière — et surtout rendu
     // bien avant tout blocage (le délai de lecture est respecté).
     let service = found.expect("port ouvert → service présent");
-    assert!(service.banner.is_none(), "aucune bannière d'une cible muette");
+    assert!(
+        service.banner.is_none(),
+        "aucune bannière d'une cible muette"
+    );
     assert!(
         elapsed < Duration::from_secs(2),
         "le timeout de lecture doit borner l'attente, écoulé = {elapsed:?}"
@@ -108,7 +111,10 @@ async fn cible_silencieuse_respecte_le_timeout_de_lecture() {
 async fn provider_reel_interchangeable_avec_le_mock() {
     // Émetteur TCP visant le port ouvert : l'unique hôte 127.0.0.1/32 est « vivant ».
     let (open, _listener) = bound_listener();
-    let emitter = Arc::new(TcpConnectEmitter::new(vec![open], Duration::from_millis(500)));
+    let emitter = Arc::new(TcpConnectEmitter::new(
+        vec![open],
+        Duration::from_millis(500),
+    ));
     let provider = RealNetworkProvider::new().with_emitter(emitter);
 
     // Utilisable derrière un objet de trait, et via la découverte pure de #7.

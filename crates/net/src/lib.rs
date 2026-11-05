@@ -33,6 +33,7 @@ pub mod map;
 pub mod privilege;
 pub mod probe;
 pub mod provider;
+pub mod tcp;
 
 /// Nom de la crate — jalon trivial « hello workspace » (issue #1) : prouve que
 /// la matrice CI exécute bien les tests de chaque crate sur Windows et Linux.

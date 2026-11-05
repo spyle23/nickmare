@@ -157,7 +157,10 @@ fn select_emitter(strategy: ProbeStrategy, timeouts: Timeouts) -> Arc<dyn ProbeE
 
 /// Émetteur de repli TCP-connect (sans privilège, portable).
 fn tcp_emitter(timeouts: Timeouts) -> Arc<dyn ProbeEmitter> {
-    Arc::new(TcpConnectEmitter::new(DEFAULT_PROBE_PORTS.to_vec(), timeouts.connect))
+    Arc::new(TcpConnectEmitter::new(
+        DEFAULT_PROBE_PORTS.to_vec(),
+        timeouts.connect,
+    ))
 }
 
 /// Émetteur brut (ICMP) — Linux uniquement.
@@ -240,8 +243,7 @@ impl NetworkProvider for RealNetworkProvider {
     async fn discover_hosts(&self, network: &str) -> NetResult<Vec<Host>> {
         // Réutilise l'énumération pure de #7 (CIDR → cibles). Entrée invalide →
         // erreur propre, jamais de panique.
-        let targets = enumerate_hosts(network)
-            .map_err(|err| NetError::Other(err.to_string()))?;
+        let targets = enumerate_hosts(network).map_err(|err| NetError::Other(err.to_string()))?;
         let mut limiter = RateLimiter::new(self.max_rate_pps);
         let mut found: Vec<Host> = Vec::new();
 

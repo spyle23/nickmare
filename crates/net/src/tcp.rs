@@ -121,22 +121,18 @@ mod tests {
     use super::*;
     use std::io::ErrorKind;
 
+    fn classify(kind: ErrorKind) -> TcpConnectResult {
+        classify_connect_error(&std::io::Error::from(kind))
+    }
+
     #[test]
     fn classe_les_erreurs_sans_socket() {
-        assert_eq!(
-            classify_connect_error(&std::io::Error::from(ErrorKind::ConnectionRefused)),
-            TcpConnectResult::Refused
-        );
-        assert_eq!(
-            classify_connect_error(&std::io::Error::from(ErrorKind::TimedOut)),
-            TcpConnectResult::TimedOut
-        );
-        assert_eq!(
-            classify_connect_error(&std::io::Error::from(ErrorKind::WouldBlock)),
-            TcpConnectResult::TimedOut
-        );
+        use ErrorKind::{ConnectionRefused, TimedOut, WouldBlock};
+        assert_eq!(classify(ConnectionRefused), TcpConnectResult::Refused);
+        assert_eq!(classify(TimedOut), TcpConnectResult::TimedOut);
+        assert_eq!(classify(WouldBlock), TcpConnectResult::TimedOut);
         assert!(matches!(
-            classify_connect_error(&std::io::Error::from(ErrorKind::AddrNotAvailable)),
+            classify(ErrorKind::AddrNotAvailable),
             TcpConnectResult::Failed(_)
         ));
     }

@@ -116,7 +116,8 @@ mod tests {
     #[test]
     fn parsing_defensif_sans_panique() {
         assert!(parse_reply(&[]).is_none());
-        assert!(parse_reply(&[0u8; 10]).is_none()); // tronquée
+        // Trame tronquée : refusée.
+        assert!(parse_reply(&[0u8; 10]).is_none());
         // Une requête (opération 1) n'est pas une réponse.
         let frame = build_request_frame([0; 6], ip(1, 1, 1, 1), ip(2, 2, 2, 2));
         assert!(parse_reply(&frame).is_none());

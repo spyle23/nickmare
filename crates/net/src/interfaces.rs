@@ -27,7 +27,10 @@ impl fmt::Display for InterfaceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InterfaceError::Unsupported => {
-                write!(f, "énumération d'interfaces non supportée sur cette plateforme")
+                write!(
+                    f,
+                    "énumération d'interfaces non supportée sur cette plateforme"
+                )
             }
             InterfaceError::Enumeration(msg) => {
                 write!(f, "échec d'énumération des interfaces : {msg}")
