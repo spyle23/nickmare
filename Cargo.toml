@@ -17,7 +17,15 @@ members = [
     "crates/emulation",
     "crates/report",
     "crates/cli",
+    "crates/sectests",
 ]
+# Le crate `fuzz/` (cargo-fuzz) est volontairement HORS workspace (issue #28,
+# §10.4) : il exige le toolchain **nightly** + libFuzzer, incompatibles avec le
+# pin MSRV 1.83 stable et l'absence de Cargo.lock. Exclu d'office (membres listés
+# explicitement), on le rend explicite pour qu'aucun `cargo *--workspace` (ni
+# `generate-lockfile` → audit/deny) ne le résolve. Il tourne dans un job CI
+# nightly dédié (.github/workflows/fuzz.yml), jamais dans la CI de PR bloquante.
+exclude = ["fuzz"]
 
 # Métadonnées partagées, héritées par chaque crate via `*.workspace = true`.
 [workspace.package]

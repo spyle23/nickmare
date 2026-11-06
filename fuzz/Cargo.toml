@@ -1,0 +1,51 @@
+# Cibles cargo-fuzz des parsers de Nickmare (issue #28, §10.4).
+#
+# HORS du workspace principal (membre exclu, cf. Cargo.toml racine) À DESSEIN :
+# cargo-fuzz exige le toolchain **nightly** + libFuzzer, incompatibles avec le
+# pin MSRV 1.83 stable du workspace et l'absence de Cargo.lock. Isolé ici, il
+# n'est JAMAIS résolu par `cargo *--workspace` (ni `generate-lockfile` →
+# audit/deny), et ne peut donc pas casser la CI de PR bloquante.
+#
+# La table `[workspace]` vide ci-dessous fait de `fuzz/` son PROPRE workspace :
+# aucune interaction avec le workspace parent. Il tourne uniquement dans le job
+# nightly dédié (.github/workflows/fuzz.yml), non bloquant (voir README.md).
+#
+# Le filet de fuzzing **bloquant** vit ailleurs : les tests déterministes « type
+# fuzz » sur stable de `crates/sectests/tests/fuzz_parsers.rs`, qui exercent les
+# MÊMES parsers dans le job `test` normal.
+[package]
+name = "nickmare-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+nickmare-core = { path = "../crates/core" }
+nickmare-net = { path = "../crates/net" }
+
+[[bin]]
+name = "banner"
+path = "fuzz_targets/banner.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "scope_toml"
+path = "fuzz_targets/scope_toml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_pcap"
+path = "fuzz_targets/wifi_pcap.rs"
+test = false
+doc = false
+bench = false

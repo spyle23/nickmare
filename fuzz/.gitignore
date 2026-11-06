@@ -1,0 +1,6 @@
+# Artefacts cargo-fuzz (jamais committés) : builds, corpus générés, reproducteurs.
+/target
+/corpus
+/artifacts
+/coverage
+Cargo.lock
