@@ -1,0 +1,27 @@
+[package]
+name = "nickmare-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Trait d'état d'engagement (EngagementStore) et types de reprise : on en fournit
+# ici l'implémentation persistante. Même modèle, deux backends (mock in-memory
+# dans `core`, SQLite ici).
+nickmare-core = { path = "../core" }
+# Horodatage RFC3339 des opérations persistées (même ligne que `core`, MSRV 1.83).
+chrono = "0.4.38"
+
+# État persistant SQLite (décision 4, §11.2). Version figée (=) comme le reste de
+# l'arbre : la toolchain est épinglée à 1.83 et le dépôt n'a PAS de Cargo.lock, on
+# fige donc un point connu-compatible plutôt que de laisser flotter vers une
+# version future au MSRV/edition plus élevé.
+#
+# Feature `bundled` : SQLite est vendoré en C et compilé par `cc` au build (aucune
+# lib système ni réseau requis au runtime des tests), sur ubuntu comme sur
+# windows-MSVC. L'arbre transitif de rusqlite 0.31 reste en edition 2018/2021
+# (libsqlite3-sys 0.28, hashlink 0.9 → hashbrown 0.14, bitflags 2, fallible-*),
+# donc parseable et compilable par cargo 1.83 — contrairement à hashbrown ≥ 0.15
+# (edition2024) qu'un rusqlite plus récent tirerait.
+rusqlite = { version = "=0.31.0", features = ["bundled"] }

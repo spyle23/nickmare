@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use nickmare_core::audit::AuditLog;
+use nickmare_core::engagement::resume;
 use nickmare_core::gate::{Decision, Request};
 use nickmare_core::lab::LabSession;
 use nickmare_core::model::{Finding, NetworkMap, Port, PortState, Proto, Service, Severity};
@@ -24,6 +25,7 @@ use nickmare_net::map::render_map;
 use nickmare_net::portscan::{scan_gated, ProviderProbe, ScanReport, UdpProbe};
 use nickmare_net::provider::{RealNetworkProvider, Timeouts};
 use nickmare_net::service_id::{identify_gated, IdentifyReport};
+use nickmare_store::SqliteStore;
 
 /// Durée par défaut de la fenêtre d'un lab (heures) si `--hours` est absent.
 const DEFAULT_LAB_HOURS: i64 = 12;
@@ -56,6 +58,7 @@ fn usage() -> String {
         "  nickmare service id <ip> --network <cidr> --attest [--ports <p,p,...>]",
         "                      [--rate <pps>] [--operator <id>] [--hours <n>]",
         "                      [--timeout-ms <n>] [--audit <chemin>]",
+        "  nickmare resume <engagement.db>",
         "  nickmare map <carte.json>",
         "",
         "scope validate : valide un fichier de scope (voie B) — résumé + empreinte SHA-256,",
@@ -72,6 +75,9 @@ fn usage() -> String {
         "service id     : identifie les services des ports ouverts d'un hôte attesté (recon",
         "                 active N1) — scan puis lecture de bannières via le gate ; nom +",
         "                 produit + version quand disponible, et constats associés (US-C1).",
+        "resume         : reprend un engagement interrompu depuis l'état SQLite persistant",
+        "                 (une base par engagement, §11.2) — repart du dernier état cohérent",
+        "                 sans re-solliciter la cible ; actions en vol marquées « incomplète ».",
         "map            : affiche la carte réseau (NetworkMap) en texte — hôtes, rôles,",
         "                 services, hôtes compromis et chemins de pivot (US-B3).",
     ];
@@ -101,6 +107,7 @@ fn run(args: &[String]) -> Result<String, String> {
         Some("lab") => run_lab(&args[1..]),
         Some("scan") => run_scan(&args[1..]),
         Some("service") => run_service(&args[1..]),
+        Some("resume") => run_resume(&args[1..]),
         Some("map") => run_map(&args[1..]),
         Some("--version" | "-V") => Ok(format!("{}\n", banniere())),
         Some("--help" | "-h") | None => Ok(usage()),
@@ -1317,6 +1324,56 @@ fn summarize_service_id(
     out
 }
 
+// --- Reprise d'engagement (`resume`) ----------------------------------------
+
+fn run_resume(args: &[String]) -> Result<String, String> {
+    let mut engagement: Option<String> = None;
+    let mut db: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--db" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --db : chemin manquant".to_string())?;
+                db = Some(value.clone());
+                index += 2;
+            }
+            other if other.starts_with('-') => {
+                return Err(format!("option inconnue : {other}\n\n{}", usage()));
+            }
+            positional => {
+                if engagement.is_some() {
+                    return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+                }
+                engagement = Some(positional.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    let Some(path) = db.or(engagement) else {
+        return Err(format!("engagement à reprendre manquant\n\n{}", usage()));
+    };
+    resume_engagement(&path, Utc::now())
+}
+
+/// Reprend un engagement depuis sa base SQLite persistante (§11.2) et renvoie le
+/// plan de reprise affichable. `now` est injecté pour un test déterministe.
+/// Fail-safe : une base absente n'est pas créée à la volée (rien à reprendre →
+/// refus clair), pour ne pas masquer une erreur de chemin.
+fn resume_engagement(path: &str, now: DateTime<Utc>) -> Result<String, String> {
+    if !std::path::Path::new(path).exists() {
+        return Err(format!(
+            "reprise impossible : aucune base d'engagement à {path} (rien à reprendre)"
+        ));
+    }
+    let mut store = SqliteStore::open(path)
+        .map_err(|err| format!("ouverture de la base d'engagement {path} : {err}"))?;
+    let plan = resume(&mut store, now).map_err(|err| format!("reprise : {err}"))?;
+    Ok(plan.render())
+}
+
 // --- Vue carte textuelle (`map`) --------------------------------------------
 
 fn run_map(args: &[String]) -> Result<String, String> {
@@ -2020,5 +2077,50 @@ mod tests {
     fn map_fichier_introuvable_erreur() {
         let err = run_map(&["chemin/inexistant/carte.json".to_string()]).unwrap_err();
         assert!(err.contains("impossible de lire"), "{err}");
+    }
+
+    // --- Reprise d'engagement (`resume`) ------------------------------------
+
+    #[test]
+    fn resume_base_absente_refuse_proprement() {
+        let err = resume_engagement("chemin/inexistant/engagement.db", now()).unwrap_err();
+        assert!(err.contains("rien à reprendre"), "{err}");
+    }
+
+    #[test]
+    fn resume_sans_argument_erreur() {
+        let err = run_resume(&[]).unwrap_err();
+        assert!(err.contains("engagement à reprendre manquant"), "{err}");
+    }
+
+    #[test]
+    fn resume_repart_du_dernier_etat_coherent() {
+        use nickmare_core::engagement::EngagementStore;
+
+        let dir = std::env::temp_dir().join(format!("nm-resume-cli-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("engagement.db");
+        let _ = std::fs::remove_file(&path);
+        let path_str = path.to_str().unwrap();
+
+        // On fabrique l'état d'un run interrompu : une opération terminée, une en
+        // vol au moment de la coupure.
+        {
+            let mut store = SqliteStore::open(path_str).unwrap();
+            store.begin("scan:a", "scan", "a", now()).unwrap();
+            store.complete("scan:a", now()).unwrap();
+            store.begin("exploit:b", "exploit", "b", now()).unwrap();
+        }
+
+        let out = resume_engagement(path_str, now()).unwrap();
+        assert!(out.contains("dernier état cohérent"), "{out}");
+        // Une terminée sautée, une récupérée incomplète à reprendre.
+        assert!(
+            out.contains("Terminées (sautées, cible non re-sollicitée) : 1"),
+            "{out}"
+        );
+        assert!(out.contains("exploit:b"), "{out}");
+
+        std::fs::remove_file(&path).ok();
     }
 }
