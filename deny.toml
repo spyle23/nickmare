@@ -1,18 +1,38 @@
-# Configuration cargo-deny (issue #1) — vérifications d'approvisionnement
-# (avis de sécurité, licences, duplications, sources).
+# Configuration cargo-deny (issue #1, durcie par #27 — cf. docs/ARCHITECTURE.md
+# §12). Vérifications d'approvisionnement : avis de sécurité, licences,
+# duplications/wildcards, sources. Schéma cargo-deny v2.
 #
-# Non bloquant au tout début de la Phase 0 : l'intégration stricte en CI relève
-# de l'issue Transverse « Sûreté, sécurité & docs ». Ce fichier fixe la base.
-# Schéma cargo-deny v2.
+# BLOQUANT EN CI : le job `deny` du workflow échoue si l'une de ces vérifications
+# relève un problème (`cargo deny check advisories bans licenses sources`). La
+# version du binaire cargo-deny est épinglée côté CI (§12 : « épingler les
+# versions »).
 
+# --- Avis de sécurité (RustSec) ---------------------------------------------
+# Toute vulnérabilité, crate non maintenue ou code *unsound* est une erreur par
+# défaut en schéma v2 (aucun besoin de les déclarer). Les crates yankées aussi.
 [advisories]
 version = 2
 yanked = "deny"
+# `ignore` : liste FERMÉE et JUSTIFIÉE. On n'y met qu'un avis sans correctif
+# compatible avec la toolchain épinglée (MSRV 1.83, sans Cargo.lock — cf. les
+# versions figées de base64ct/zeroize/ed25519-dalek/rusqlite/tokio dans les
+# manifestes). Chaque entrée DOIT porter l'ID RUSTSEC + la raison. Vide tant
+# qu'aucun avis ne frappe l'arbre : on ne désactive jamais la vérification
+# globalement, on traite les avis un par un.
+ignore = []
 
+# --- Licences ----------------------------------------------------------------
+# Liste permissive, cohérente avec l'arbre réellement tiré par les manifestes :
+#   - MIT / Apache-2.0 : serde(_json), chrono, async-trait, tokio, libc, rusqlite
+#     & libsqlite3-sys, bitflags, hashbrown, getrandom, basic-toml, les crates
+#     RustCrypto (sha2, digest…), itoa, ryu (Apache-2.0 OR BSL-1.0 → Apache)…
+#   - BSD-3-Clause : la pile ed25519-dalek / curve25519-dalek / subtle.
+#   - Unicode-DFS-2016 : unicode-ident (via syn/proc-macro2).
+# Les crates internes du workspace n'ont pas encore de licence déclarée (README :
+# « LICENSE à définir ») ; elles sont `publish = false` et exclues ici via
+# `private.ignore` — on ne vérifie que les dépendances tierces.
 [licenses]
 version = 2
-# Licences permissives acceptées. À affiner quand la licence du projet sera
-# fixée (README : « LICENSE à définir »).
 allow = [
     "MIT",
     "Apache-2.0",
@@ -24,11 +44,24 @@ allow = [
     "Zlib",
 ]
 confidence-threshold = 0.9
+# N'impose pas de licence aux crates locales non publiées (publish = false).
+private = { ignore = true }
 
+# --- Bans / duplications / wildcards ----------------------------------------
+# `wildcards = "deny"` interdit toute dépendance TIERCE en version `"*"`.
+# `allow-wildcard-paths = true` tolère en revanche les dépendances `path` entre
+# crates du workspace (`nickmare-core = { path = "../core" }`, sans version),
+# qui seraient sinon vues comme des wildcards.
+# `multiple-versions = "warn"` : sans Cargo.lock, l'arbre peut contenir des
+# doublons transitoires (ex. plusieurs `windows-sys`/`bitflags`) ; on les
+# signale sans faire échouer la CI.
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+allow-wildcard-paths = true
 
+# --- Sources -----------------------------------------------------------------
+# Tout doit venir de crates.io ; aucune source git ni registre inconnu.
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
