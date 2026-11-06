@@ -524,16 +524,16 @@ fn parse_radiotap(bytes: &[u8]) -> Option<Radiotap> {
 fn radiotap_field_layout(bit: u32) -> Option<(usize, usize)> {
     // (alignement, taille) en octets par bit `present` radiotap standard.
     Some(match bit {
-        0 => (8, 8), // TSFT
-        1 => (1, 1), // Flags
-        2 => (1, 1), // Rate
-        3 => (2, 4), // Channel (fréquence + flags)
-        4 => (2, 2), // FHSS
-        5 => (1, 1), // Antenna signal (dBm)
-        6 => (1, 1), // Antenna noise (dBm)
-        7 => (2, 2), // Lock quality
-        8 => (2, 2), // TX attenuation
-        9 => (2, 2), // dB TX attenuation
+        0 => (8, 8),  // TSFT
+        1 => (1, 1),  // Flags
+        2 => (1, 1),  // Rate
+        3 => (2, 4),  // Channel (fréquence + flags)
+        4 => (2, 2),  // FHSS
+        5 => (1, 1),  // Antenna signal (dBm)
+        6 => (1, 1),  // Antenna noise (dBm)
+        7 => (2, 2),  // Lock quality
+        8 => (2, 2),  // TX attenuation
+        9 => (2, 2),  // dB TX attenuation
         10 => (1, 1), // dBm TX power
         11 => (1, 1), // Antenna
         12 => (1, 1), // dB antenna signal
@@ -952,7 +952,8 @@ mod tests {
     #[test]
     fn radiotap_defensif_sur_entrees_courtes() {
         assert!(parse_radiotap(&[]).is_none());
-        assert!(parse_radiotap(&[0, 0, 4]).is_none()); // trop court
+        // Trop court.
+        assert!(parse_radiotap(&[0, 0, 4]).is_none());
         // it_len annonçant plus que disponible.
         assert!(parse_radiotap(&[0, 0, 64, 0, 0x2e, 0, 0, 0]).is_none());
     }
