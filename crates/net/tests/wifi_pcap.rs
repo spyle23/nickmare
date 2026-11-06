@@ -71,6 +71,8 @@ fn trames_partielles_ne_paniquent_pas() {
 #[test]
 fn capture_en_direct_indisponible_donne_un_repli_clair() {
     // DoD Phase 4 : repli clair si capture indisponible (pas de Npcap/monitor).
-    let err = wifi::open_live("wlan0").unwrap_err();
-    assert!(matches!(err, WifiError::CaptureUnavailable { .. }));
+    assert!(matches!(
+        wifi::open_live("wlan0"),
+        Err(WifiError::CaptureUnavailable { .. })
+    ));
 }

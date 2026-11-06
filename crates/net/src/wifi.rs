@@ -581,7 +581,12 @@ fn parse_management(body: &[u8]) -> Option<AccessPoint> {
     let privacy = capability & 0x0010 != 0;
 
     let params = parse_tags(&fixed[12..]);
-    let encryption = classify(privacy, params.rsn_present, params.rsn_sae, params.wpa_vendor);
+    let encryption = classify(
+        privacy,
+        params.rsn_present,
+        params.rsn_sae,
+        params.wpa_vendor,
+    );
     Some(AccessPoint {
         ssid: params.ssid,
         bssid,
@@ -895,13 +900,13 @@ mod tests {
     fn capture_live_renvoie_un_repli_clair() {
         // §Phase 4 DoD : repli clair si capture indisponible (pas de Npcap /
         // monitor), jamais une panique, et évidemment aucune trame émise.
-        let err = open_live("wlan0").unwrap_err();
-        match err {
-            WifiError::CaptureUnavailable { interface, detail } => {
+        match open_live("wlan0") {
+            Err(WifiError::CaptureUnavailable { interface, detail }) => {
                 assert_eq!(interface, "wlan0");
                 assert!(!detail.is_empty());
             }
-            other => panic!("repli inattendu : {other:?}"),
+            Err(other) => panic!("repli inattendu : {other:?}"),
+            Ok(_) => panic!("open_live ne devrait pas réussir sans capture"),
         }
     }
 
