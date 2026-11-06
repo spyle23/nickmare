@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use nickmare_core::audit::AuditLog;
-use nickmare_core::engagement::resume;
+use nickmare_core::engagement::{EngagementId, resume};
 use nickmare_core::gate::{Decision, Request};
 use nickmare_core::lab::LabSession;
 use nickmare_core::model::{Finding, NetworkMap, Port, PortState, Proto, Service, Severity};
@@ -25,6 +25,7 @@ use nickmare_net::map::render_map;
 use nickmare_net::portscan::{scan_gated, ProviderProbe, ScanReport, UdpProbe};
 use nickmare_net::provider::{RealNetworkProvider, Timeouts};
 use nickmare_net::service_id::{identify_gated, IdentifyReport};
+use nickmare_report::load_from_store;
 use nickmare_store::SqliteStore;
 
 /// Durée par défaut de la fenêtre d'un lab (heures) si `--hours` est absent.
@@ -59,6 +60,8 @@ fn usage() -> String {
         "                      [--rate <pps>] [--operator <id>] [--hours <n>]",
         "                      [--timeout-ms <n>] [--audit <chemin>]",
         "  nickmare resume <engagement.db>",
+        "  nickmare report <engagement.db> --format <html|json> [--out <chemin>]",
+        "                  [--engagement <nom>]",
         "  nickmare map <carte.json>",
         "",
         "scope validate : valide un fichier de scope (voie B) — résumé + empreinte SHA-256,",
@@ -78,6 +81,9 @@ fn usage() -> String {
         "resume         : reprend un engagement interrompu depuis l'état SQLite persistant",
         "                 (une base par engagement, §11.2) — repart du dernier état cohérent",
         "                 sans re-solliciter la cible ; actions en vol marquées « incomplète ».",
+        "report         : restitue l'engagement (niveau 1) en HTML lisible (US-H1) ou JSON",
+        "                 complet (US-H2) — résumé exécutif, carte réseau, constats. Lit la",
+        "                 base SQLite de l'engagement ; --out pour écrire dans un fichier.",
         "map            : affiche la carte réseau (NetworkMap) en texte — hôtes, rôles,",
         "                 services, hôtes compromis et chemins de pivot (US-B3).",
     ];
@@ -108,6 +114,7 @@ fn run(args: &[String]) -> Result<String, String> {
         Some("scan") => run_scan(&args[1..]),
         Some("service") => run_service(&args[1..]),
         Some("resume") => run_resume(&args[1..]),
+        Some("report") => run_report(&args[1..]),
         Some("map") => run_map(&args[1..]),
         Some("--version" | "-V") => Ok(format!("{}\n", banniere())),
         Some("--help" | "-h") | None => Ok(usage()),
@@ -1374,6 +1381,115 @@ fn resume_engagement(path: &str, now: DateTime<Utc>) -> Result<String, String> {
     Ok(plan.render())
 }
 
+// --- Rapport (`report`) -----------------------------------------------------
+
+fn run_report(args: &[String]) -> Result<String, String> {
+    let mut path: Option<String> = None;
+    let mut format: Option<String> = None;
+    let mut out: Option<String> = None;
+    let mut engagement: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--format" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --format : html ou json attendu".to_string())?;
+                format = Some(value.clone());
+                index += 2;
+            }
+            "--out" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --out : chemin manquant".to_string())?;
+                out = Some(value.clone());
+                index += 2;
+            }
+            "--engagement" => {
+                let value = args
+                    .get(index + 1)
+                    .ok_or_else(|| "option --engagement : nom manquant".to_string())?;
+                engagement = Some(value.clone());
+                index += 2;
+            }
+            other if other.starts_with('-') => {
+                return Err(format!("option inconnue : {other}\n\n{}", usage()));
+            }
+            positional => {
+                if path.is_some() {
+                    return Err(format!("argument en trop : {positional}\n\n{}", usage()));
+                }
+                path = Some(positional.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    let Some(path) = path else {
+        return Err(format!("engagement à rapporter manquant\n\n{}", usage()));
+    };
+    let Some(format) = format else {
+        return Err(format!("format manquant : précisez --format\n\n{}", usage()));
+    };
+    report_cmd(&path, &format, out.as_deref(), engagement.as_deref(), Utc::now())
+}
+
+/// Génère le rapport Niveau 1 d'un engagement depuis sa base SQLite (§9 Phase 5).
+/// Lit l'état via le trait `EngagementStore`, agrège carte + constats + état, puis
+/// rend en HTML (US-H1) ou JSON (US-H2). `now` est injecté pour un test
+/// déterministe. Fail-safe : une base absente n'est pas créée (refus clair), et un
+/// format inconnu est rejeté avant toute écriture.
+fn report_cmd(
+    path: &str,
+    format: &str,
+    out: Option<&str>,
+    engagement: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<String, String> {
+    if !matches!(format, "html" | "json") {
+        return Err(format!(
+            "format inconnu : {format} (attendu html ou json)\n\n{}",
+            usage()
+        ));
+    }
+    if !std::path::Path::new(path).exists() {
+        return Err(format!(
+            "rapport impossible : aucune base d'engagement à {path} (rien à rapporter)"
+        ));
+    }
+    let store = SqliteStore::open(path)
+        .map_err(|err| format!("ouverture de la base d'engagement {path} : {err}"))?;
+    let name = match engagement {
+        Some(value) => value.to_string(),
+        None => engagement_name_from_path(path),
+    };
+    let tool = banniere();
+    let model = load_from_store(&store, &name, &tool, now)
+        .map_err(|err| format!("génération du rapport : {err}"))?;
+    let content = match format {
+        "json" => model.to_json().map_err(|err| format!("export JSON : {err}"))?,
+        _ => model.to_html().map_err(|err| format!("rendu HTML : {err}"))?,
+    };
+    match out {
+        Some(dest) => {
+            std::fs::write(dest, &content)
+                .map_err(|err| format!("écriture du rapport {dest} : {err}"))?;
+            Ok(format!("Rapport {format} écrit dans {dest}\n"))
+        }
+        None => Ok(content),
+    }
+}
+
+/// Déduit un nom d'engagement lisible du chemin de base (radical du fichier),
+/// normalisé en caractères sûrs.
+fn engagement_name_from_path(path: &str) -> String {
+    let stem = std::path::Path::new(path).file_stem();
+    match stem.and_then(|s| s.to_str()) {
+        Some(name) => EngagementId::new(name).as_str().to_string(),
+        None => "engagement".to_string(),
+    }
+}
+
 // --- Vue carte textuelle (`map`) --------------------------------------------
 
 fn run_map(args: &[String]) -> Result<String, String> {
@@ -2120,6 +2236,59 @@ mod tests {
             "{out}"
         );
         assert!(out.contains("exploit:b"), "{out}");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    // --- Rapport (`report`) -------------------------------------------------
+
+    #[test]
+    fn report_format_manquant_refuse() {
+        let err = run_report(&["engagement.db".to_string()]).unwrap_err();
+        assert!(err.contains("format manquant"), "{err}");
+    }
+
+    #[test]
+    fn report_format_inconnu_refuse() {
+        let err = report_cmd("x.db", "pdf", None, None, now()).unwrap_err();
+        assert!(err.contains("format inconnu"), "{err}");
+    }
+
+    #[test]
+    fn report_base_absente_refuse_proprement() {
+        let err = report_cmd("nope-16.db", "json", None, None, now()).unwrap_err();
+        assert!(err.contains("rien à rapporter"), "{err}");
+    }
+
+    #[test]
+    fn report_html_et_json_depuis_un_store_seme() {
+        use nickmare_core::engagement::EngagementStore;
+        use nickmare_report::NETWORK_MAP_KEY;
+
+        let dir = std::env::temp_dir().join(format!("nm-report-cli-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("engagement.db");
+        let _ = std::fs::remove_file(&path);
+        let path_str = path.to_str().unwrap();
+
+        // Carte persistée sous la clé réservée + une opération terminée.
+        {
+            let mut store = SqliteStore::open(path_str).unwrap();
+            let map = r#"{"scope_network":"192.168.0.0/24","hosts":[],"pivots":[]}"#;
+            store.put_result(NETWORK_MAP_KEY, map).unwrap();
+            store.begin("scan:a", "scan", "a", now()).unwrap();
+            store.complete("scan:a", now()).unwrap();
+        }
+
+        let html = report_cmd(path_str, "html", None, Some("acme"), now()).unwrap();
+        assert!(html.contains("Carte réseau"), "{html}");
+        assert!(html.contains("192.168.0.0/24"), "{html}");
+        assert!(html.contains("acme"), "{html}");
+
+        let json = report_cmd(path_str, "json", None, None, now()).unwrap();
+        assert!(json.contains("192.168.0.0/24"), "{json}");
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(value.get("network").is_some());
 
         std::fs::remove_file(&path).ok();
     }
