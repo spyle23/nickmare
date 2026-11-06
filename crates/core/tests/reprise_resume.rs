@@ -9,6 +9,11 @@
 //! - une action **en vol** au moment de la coupure est récupérée `Incomplete` à
 //!   la reprise (jamais « réussie » en silence), puis relancée proprement.
 
+// Fichier de tests d'intégration (100 % code de test) : les lints de sûreté du
+// workspace (unwrap/expect/panic interdits sur les chemins d'exécution, #27) ne
+// s'appliquent pas ici — un `unwrap` qui échoue EST le signal d'échec attendu.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use chrono::{DateTime, Utc};
 use nickmare_core::audit::{verify_file, AuditLog, AuditRecord, CapabilityLevel};
 use nickmare_core::engagement::{resume, BeginOutcome, EngagementStore, InMemoryStore, OpStatus};

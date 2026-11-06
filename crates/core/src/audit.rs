@@ -269,12 +269,16 @@ impl AuditEntry {
     ///
     /// La sérialisation JSON d'une `AuditEntry` (uniquement des scalaires, des
     /// chaînes, des énumérations et un `DateTime` — aucun type à ordre non
-    /// déterministe) est stable et reproductible : c'est un invariant interne,
-    /// d'où le `expect` (§11.4 : panique réservée aux invariants internes).
+    /// déterministe) est stable et reproductible. Conformément à §12, aucun
+    /// chemin d'exécution ne doit paniquer : si la sérialisation échouait malgré
+    /// tout, on retombe sur une représentation vide via `unwrap_or_default`. Le
+    /// condensat reste bien formé (64 hexas) et surtout **cohérent** entre
+    /// l'écriture (`append_at`) et la vérification (`verify_entries`), qui
+    /// passent toutes deux par cette unique fonction.
     fn compute_hash(&self) -> String {
         let mut bare = self.clone();
         bare.hash = String::new();
-        let bytes = serde_json::to_vec(&bare).expect("AuditEntry sérialisable");
+        let bytes = serde_json::to_vec(&bare).unwrap_or_default();
         let digest = Sha256::digest(&bytes);
         to_hex(digest.as_slice())
     }

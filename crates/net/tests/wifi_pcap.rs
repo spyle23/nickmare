@@ -8,6 +8,11 @@
 //! clair quand la capture en direct est indisponible, et l'absence de panique
 //! sur des trames partielles.
 
+// Fichier de tests d'intégration (100 % code de test) : les lints de sûreté du
+// workspace (unwrap/expect/panic interdits sur les chemins d'exécution, #27) ne
+// s'appliquent pas ici — un `unwrap` qui échoue EST le signal d'échec attendu.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use nickmare_net::wifi::{self, AccessPoint, Encryption, FrameSource, PcapReplaySource, WifiError};
 
 const BEACONS: &[u8] = include_bytes!("../../../testdata/wifi/wifi_beacons.pcap");

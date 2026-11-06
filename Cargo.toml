@@ -25,6 +25,23 @@ version = "0.2.0"
 edition = "2021"
 rust-version = "1.83"
 repository = "https://github.com/spyle23/nickmare"
+# Outil interne d'engagement, jamais publié sur crates.io (§12 — réduire la
+# surface : on ne pousse pas par accident un outil offensif sur un registre
+# public). Hérité par chaque crate via `publish.workspace = true`. Permet aussi à
+# `cargo deny` d'ignorer ces crates « privées » qui n'ont pas encore de licence
+# déclarée (README : « LICENSE à définir »), via `[licenses] private.ignore`.
+publish = false
+
+# Lints de sûreté partagés (issue #27, §11.4 & §12) : hérités par chaque crate
+# via `[lints] workspace = true`. On interdit `unwrap`/`expect`/`panic!` sur les
+# chemins d'exécution — une entrée réseau hostile ne doit jamais faire paniquer
+# l'outil, les erreurs remontent via `Result`. Les usages en test restent permis
+# (clippy.toml : allow-{unwrap,expect,panic}-in-tests). Ce sont des lints clippy
+# `restriction` (inertes hors `cargo clippy`), donc sans effet sur `cargo build`.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
 
 [profile.release]
 # Binaire d'audit : build optimisé et dépouillé.

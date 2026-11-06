@@ -75,6 +75,60 @@ jobs:
       - name: Build
         run: cargo build --all-features --workspace
 
+  # Audit des avis de sécurité RustSec sur l'arbre de dépendances (issue #27,
+  # §12). BLOQUANT : la CI échoue si `cargo audit` relève une vulnérabilité ou
+  # une crate yankée. Contrairement aux tests du projet (hors ligne), ce job a
+  # accès au réseau pour récupérer la base d'avis. Le dépôt n'a pas de Cargo.lock
+  # (MSRV 1.83) : on en génère un éphémère, non committé, pour auditer exactement
+  # l'arbre résolu par la toolchain épinglée.
+  audit:
+    needs: detect
+    if: needs.detect.outputs.has_cargo == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Installer cargo-audit (version épinglée, §12)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit@0.22.2
+      - name: Générer un Cargo.lock éphémère
+        run: cargo generate-lockfile
+      - name: cargo audit (bloquant)
+        run: cargo audit
+
+  # Vérifications d'approvisionnement cargo-deny (issue #27, §12) : avis de
+  # sécurité, licences autorisées, wildcards/doublons, sources. BLOQUANT : la CI
+  # échoue si une vérification relève un problème. Config : deny.toml. Réseau
+  # autorisé (base d'avis RustSec + index crates.io pour les yanks).
+  deny:
+    needs: detect
+    if: needs.detect.outputs.has_cargo == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Installer cargo-deny (version épinglée, §12)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2
+      # Lock résolu par la toolchain épinglée (1.83, via rust-toolchain.toml) :
+      # c'est l'arbre EXACT qui est livré. `generate-lockfile` n'ouvre que l'index
+      # (pas les manifestes complets), donc l'absence de parseur edition 2024 en
+      # 1.83 ne le gêne pas.
+      - name: Générer un Cargo.lock éphémère (versions résolues en MSRV 1.83)
+        run: cargo generate-lockfile
+      # cargo-deny lit le manifeste de CHAQUE crate de l'arbre, y compris des
+      # dépendances target-gated jamais compilées (ex. backtrace→gimli tiré par
+      # cfg(tokio_taskdump)). Certains manifestes récents sont en edition 2024,
+      # que cargo 1.83 ne sait pas parser. On analyse donc l'arbre FIGÉ en 1.83
+      # (--locked sur le lock ci-dessus) avec la toolchain stable du runner, seule
+      # capable de parser ces manifestes — sans changer les versions livrées.
+      - name: cargo deny check (bloquant)
+        env:
+          RUSTUP_TOOLCHAIN: stable
+        run: cargo deny --locked check advisories bans licenses sources
+
   # Tests des scripts d'outillage CI (sans réseau : `gh` est bouchonné).
   scripts:
     runs-on: ubuntu-latest
@@ -101,13 +155,15 @@ jobs:
   # Merge automatique : ne s'exécute que sur une PR portant le label `auto-merge`,
   # et seulement si la CI est verte (ou légitimement ignorée faute de code Rust).
   auto-merge:
-    needs: [detect, fmt_clippy, test, scripts]
+    needs: [detect, fmt_clippy, test, audit, deny, scripts]
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
       (needs.fmt_clippy.result == 'success' || needs.fmt_clippy.result == 'skipped') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.audit.result == 'success' || needs.audit.result == 'skipped') &&
+      (needs.deny.result == 'success' || needs.deny.result == 'skipped') &&
       needs.scripts.result == 'success'
     runs-on: ubuntu-latest
     permissions:

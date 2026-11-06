@@ -12,6 +12,11 @@
 //! Aucune donnée externe n'est `unwrap`ée aveuglément : le parsing de bannière
 //! est défensif (une trame malformée rend une erreur, jamais une panique, §12).
 
+// Fichier de tests d'intégration (100 % code de test) : les lints de sûreté du
+// workspace (unwrap/expect/panic interdits sur les chemins d'exécution, #27) ne
+// s'appliquent pas ici — un `unwrap` qui échoue EST le signal d'échec attendu.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::net::IpAddr;
 
 use chrono::{DateTime, TimeDelta, Utc};

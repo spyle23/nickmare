@@ -7,6 +7,11 @@
 //! recon passive ne demande rien (US-A0). On prouve la chaîne
 //! « planifier le sweep → découvrir les hôtes → bâtir la carte ».
 
+// Fichier de tests d'intégration (100 % code de test) : les lints de sûreté du
+// workspace (unwrap/expect/panic interdits sur les chemins d'exécution, #27) ne
+// s'appliquent pas ici — un `unwrap` qui échoue EST le signal d'échec attendu.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::net::IpAddr;
 use std::time::Duration;
 
