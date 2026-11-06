@@ -9,6 +9,7 @@
 resolver = "2"
 members = [
     "crates/core",
+    "crates/store",
     "crates/net",
     "crates/cve",
     "crates/exploit",
