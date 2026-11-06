@@ -1,0 +1,78 @@
+# =============================================================================
+# MODÈLE DE FICHIER DE SCOPE (voie B) — à copier et adapter pour un engagement.
+#
+# Un fichier de scope déclare le PÉRIMÈTRE AUTORISÉ d'un engagement : qui, quoi,
+# quand, et avec quelles capacités. L'outil le charge, le valide, et confine
+# TOUTE action active à ce périmètre (cf. docs/ARCHITECTURE.md §3, et le gate §3.2).
+#
+#   nickmare scope validate testdata/scope/template.toml
+#
+# Ce fichier est un MODÈLE : toutes les valeurs sont FICTIVES (aucune donnée
+# réelle). Les adresses sont en plages privées RFC1918 et les domaines en `.test`
+# (RFC6761). Ne committez JAMAIS un scope d'engagement réel dans un dépôt.
+#
+# Règles de format importantes :
+#   - les champs inconnus sont REFUSÉS (le parseur est strict) : pas de typo ;
+#   - toutes les capacités au-delà de la recon sont DÉSACTIVÉES par défaut ;
+#     il faut `enabled = true` explicitement pour chacune.
+# =============================================================================
+
+# -- Identité de l'engagement (toutes ces clés sont obligatoires) -------------
+[engagement]
+client        = "Example Org"                       # donneur d'ordre
+reference      = "PENTEST-2026-000"                  # réf. contrat / mandat
+authorized_by = "Direction SI — mandat signé 2026-01-01"  # qui a autorisé
+operator      = "operateur@example.test"            # identité de l'opérateur
+# Fenêtre d'engagement (UTC, ISO 8601). Hors de cette fenêtre → scope refusé.
+valid_from    = "2026-01-01T00:00:00Z"
+valid_until   = "2026-12-31T23:59:59Z"
+
+# -- Cibles autorisées --------------------------------------------------------
+[targets]
+# CIDR et hôtes explicitement autorisés (plusieurs sous-réseaux reliés possibles :
+# le pivot N2 peut les franchir, cf. §2 US-E4).
+networks = ["192.168.10.0/24", "10.20.0.0/16"]
+hosts    = ["192.168.50.5"]
+
+[targets.exclusions]
+# JAMAIS touchés, même s'ils tombent dans un CIDR autorisé (passerelles, équipements
+# critiques/fragiles — cf. §11.1). On peut exclure des hôtes et/ou des sous-réseaux.
+hosts    = ["192.168.10.1", "10.20.0.254"]
+networks = []
+
+# -- Contraintes de sûreté ----------------------------------------------------
+[constraints]
+max_rate_pps     = 200           # débit max (paquets/seconde) — plafond token bucket
+allowed_hours    = "08:00-18:00" # fenêtre horaire autorisée (UTC) ; omettre = 24/24
+tcp_connect_only = false         # true = pas de SYN scan brut (connect TCP seul)
+
+# -- Capacités (tout est désactivé par défaut ; activation granulaire) --------
+[capabilities]
+recon = true                     # Niveau 1 — reconnaissance & cartographie (toujours)
+
+[capabilities.exploitation]       # Niveau 2 — intrusion (human-in-the-loop)
+enabled            = false        # mettre true pour autoriser l'exploitation
+mode               = "manual"     # "manual" (confirmation par cible) | "auto"
+destructive_checks = false        # false = mode validation uniquement (jamais destructeur)
+allowed_hosts      = ["192.168.10.25", "192.168.10.30"]  # seuls ces hôtes exploitables
+max_actions        = 50           # plafond d'actions en mode auto
+
+[capabilities.cracking]           # Niveau 3 — craquage de credentials
+enabled                  = false  # mettre true pour autoriser le craquage
+online_spray             = false  # true = test en ligne (risque de verrouillage de comptes)
+max_attempts_per_account = 3      # borne anti-verrouillage
+
+[capabilities.emulation]          # Niveau 4 — émulation d'adversaire & détection
+enabled           = false         # mettre true pour autoriser l'émulation
+attack_techniques = ["T1046", "T1021", "T1570"]  # IDs ATT&CK autorisés (seuls jouables)
+profile           = "balanced"    # "noisy" | "balanced" | "stealth" (agressivité rejouée)
+blue_team_contact = "soc@example.test"           # coordination purple team (hors mode labo)
+
+# -- Intégrité (optionnel) ----------------------------------------------------
+# Absent → mode v1 : vérification VISUELLE de l'empreinte SHA-256 affichée.
+# Présent → signature ed25519 OBLIGATOIRE et vérifiée (clé fournie via
+#   `--trusted-key`/`--trusted-key-file`), sinon refus de chargement. Pour un
+# engagement formel, décommentez et faites signer le scope par le donneur d'ordre.
+#
+# [integrity]
+# signature = "<signature ed25519 hex du scope, 128 caractères>"

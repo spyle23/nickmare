@@ -9,6 +9,14 @@ de la sécurité réseau en **laboratoire contrôlé et isolé**.
 - **Statut** : fondations (v0.2) — workspace Cargo et CI multiplateforme en place (Phase 0).
 - **Spécification** : voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture & spécifications.
+- [`docs/LEGAL.md`](docs/LEGAL.md) — cadre d'usage, modèle d'autorisation écrite, mentions légales.
+- [`docs/OPERATOR_GUIDE.md`](docs/OPERATOR_GUIDE.md) — guide opérateur, flux d'intrusion
+  simulée, modèle de scope, et [kill-switch réseau du lab](docs/OPERATOR_GUIDE.md#kill-switch-réseau-du-lab).
+- [`docs/TESTING.md`](docs/TESTING.md) — stratégie de tests.
+
 ## Prérequis système
 
 Nickmare est multiplateforme (Windows / Linux). La capture de paquets et le scan SYN
@@ -53,4 +61,7 @@ incrément utilisable et testé. Voir les *milestones* et *issues* du dépôt, e
 
 ## Licence
 
-Voir [`LICENSE`](LICENSE) (à définir).
+Nickmare est distribué sous licence **Apache-2.0** — voir [`LICENSE`](LICENSE). Cette
+licence régit les droits sur le *logiciel* ; elle ne confère **aucun** droit d'auditer
+des systèmes tiers. L'usage de l'outil est réservé aux engagements autorisés (voir
+[`docs/LEGAL.md`](docs/LEGAL.md)).
