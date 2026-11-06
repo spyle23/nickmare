@@ -16,10 +16,25 @@ yanked = "deny"
 # `ignore` : liste FERMÉE et JUSTIFIÉE. On n'y met qu'un avis sans correctif
 # compatible avec la toolchain épinglée (MSRV 1.83, sans Cargo.lock — cf. les
 # versions figées de base64ct/zeroize/ed25519-dalek/rusqlite/tokio dans les
-# manifestes). Chaque entrée DOIT porter l'ID RUSTSEC + la raison. Vide tant
-# qu'aucun avis ne frappe l'arbre : on ne désactive jamais la vérification
-# globalement, on traite les avis un par un.
-ignore = []
+# manifestes) OU qui ne touche pas de code effectivement compilé. Chaque entrée
+# porte l'ID RUSTSEC + la raison. `cargo audit` (job séparé) reste strict sur les
+# VULNÉRABILITÉS : aucune n'est ignorée ici, seulement des avis `unmaintained`/
+# `unsound` non exploitables dans notre usage.
+ignore = [
+    # basic-toml non maintenu (dépôt archivé, dernière release 03/2025). Conservé
+    # à dessein : seul parseur TOML serde minimaliste compatible MSRV 1.83 — `toml`
+    # /`toml_edit` tirent indexmap → hashbrown en edition 2024 (rustc ≥ 1.85), cf.
+    # crates/core/Cargo.toml. Pas d'alternative maintenue compatible ; surface
+    # limitée au parsing d'un fichier de scope local (opérateur), pas de réseau.
+    "RUSTSEC-2026-0374",
+    # tokio — `sync::broadcast` clone en parallèle sans requérir `Sync` (unsound).
+    # NON COMPILÉ : on n'active que les features `rt`/`time`/`macros`, jamais
+    # `sync`. API jamais utilisée. tokio figé =1.40.0 pour MSRV 1.83.
+    "RUSTSEC-2025-0023",
+    # tokio — `AsyncFd::new` viole la sûreté d'I/O (unsound). NON COMPILÉ : la
+    # feature `net` n'est pas activée. API jamais utilisée. Même pin MSRV 1.83.
+    "RUSTSEC-2026-0386",
+]
 
 # --- Licences ----------------------------------------------------------------
 # Liste permissive, cohérente avec l'arbre réellement tiré par les manifestes :
@@ -27,7 +42,9 @@ ignore = []
 #     & libsqlite3-sys, bitflags, hashbrown, getrandom, basic-toml, les crates
 #     RustCrypto (sha2, digest…), itoa, ryu (Apache-2.0 OR BSL-1.0 → Apache)…
 #   - BSD-3-Clause : la pile ed25519-dalek / curve25519-dalek / subtle.
-#   - Unicode-DFS-2016 : unicode-ident (via syn/proc-macro2).
+#   - Unicode-DFS-2016 / Unicode-3.0 : unicode-ident (via syn/proc-macro2) ;
+#     la ligne récente d'unicode-ident est passée à Unicode-3.0 (licence Unicode
+#     permissive), d'où les deux variantes autorisées.
 # Les crates internes du workspace n'ont pas encore de licence déclarée (README :
 # « LICENSE à définir ») ; elles sont `publish = false` et exclues ici via
 # `private.ignore` — on ne vérifie que les dépendances tierces.
@@ -41,6 +58,7 @@ allow = [
     "BSD-3-Clause",
     "ISC",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "Zlib",
 ]
 confidence-threshold = 0.9
