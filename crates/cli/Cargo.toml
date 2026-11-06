@@ -15,6 +15,9 @@ path = "src/main.rs"
 nickmare-core = { path = "../core" }
 # Vue carte textuelle de la NetworkMap (issue #9) : rendu lisible pour `map`.
 nickmare-net = { path = "../net" }
+# État persistant SQLite d'un engagement (issue #26, §11.2) : support de
+# `nickmare resume <engagement>`.
+nickmare-store = { path = "../store" }
 # Horloge (`Utc::now()`) pour la validation temporelle au moment de l'appel.
 chrono = "0.4.38"
 # Désérialisation de la carte réseau (NetworkMap) pour `nickmare map <carte.json>`.
