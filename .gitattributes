@@ -10,3 +10,9 @@
 *.py    text eol=lf
 *.md    text eol=lf
 *.yml   text eol=lf
+
+# Captures pcap de référence (WiFi passif, #15) : binaires, JAMAIS normalisées en
+# LF (sinon les octets seraient corrompus et le rejeu des fixtures casserait).
+*.pcap  binary
+*.cap   binary
+*.pcapng binary
