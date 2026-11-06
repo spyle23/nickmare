@@ -1,0 +1,43 @@
+[package]
+name = "nickmare-sectests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+# Lints de sûreté partagés (issue #27) : interdit unwrap/expect/panic! sur les
+# chemins d'exécution (cf. [workspace.lints.clippy] + clippy.toml). Les fichiers
+# de tests d'intégration (tests/*.rs) rétablissent ces facilités en tête de
+# fichier (#![allow(...)]) : leurs helpers hors #[test] échappent sinon au
+# allow-in-tests de clippy.toml.
+[lints]
+workspace = true
+
+# --- Crate transverse de tests négatifs de sécurité (issue #28, §10.4) --------
+#
+# Ce crate n'embarque AUCUNE logique applicative : c'est le foyer de la **suite
+# négative transverse** (le filet de sécurité secondaire, `docs/TESTING.md` §2)
+# et des **cibles de fuzz déterministes** sur stable. Il n'exerce QUE les
+# capacités qui existent déjà (recon/scan/service_id/cve/wifi + le gate) ; les
+# legs N2–N4 (exploit/pivot/crack/émulation, derrière le jalon #17) s'y
+# brancheront en Phases 6/7/8 en ajoutant leurs dev-dependencies et fichiers de
+# test — sans toucher à la structure.
+#
+# Toutes les dépendances sont déjà dans l'arbre MSRV 1.83 (aucune nouvelle crate
+# tierce) : `cargo deny`/`audit` restent verts, et le crate est `publish = false`.
+[dependencies]
+
+[dev-dependencies]
+# Gate, scope, rate, audit, modèle et traits (mocks) : le cœur à confiner.
+nickmare-core = { path = "../core" }
+# Parsers existants fuzzés (bannières service_id, pcap WiFi), orchestration
+# confinée au gate (scan/identify) et découverte mock.
+nickmare-net = { path = "../net" }
+# Corrélation CVE (pure, hors ligne) : leg « service_id → cve » du scénario mock.
+nickmare-cve = { path = "../cve" }
+# Runtime des tests asynchrones (identify_gated/discover_map). tokio figé (=)
+# comme partout (MSRV 1.83), features minimales, aucune I/O réseau.
+tokio = { version = "=1.40.0", features = ["macros", "rt"] }
+# Horodatage déterministe des requêtes gate et des entrées d'audit.
+chrono = { version = "0.4.38", features = ["serde"] }
