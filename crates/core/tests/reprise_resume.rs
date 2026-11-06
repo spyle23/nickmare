@@ -59,12 +59,30 @@ fn rejouer_une_etape_terminee_ne_double_pas_l_audit() {
     let mut store = InMemoryStore::new();
 
     // Première exécution : action émise + 1 entrée d'audit.
-    assert!(execute(&mut store, &mut log, "scan:a", "scan", "10.0.0.1", t(1)));
+    assert!(execute(
+        &mut store,
+        &mut log,
+        "scan:a",
+        "scan",
+        "10.0.0.1",
+        t(1)
+    ));
     // Rejeu à l'identique : sautée (idempotence) — aucune nouvelle entrée.
-    assert!(!execute(&mut store, &mut log, "scan:a", "scan", "10.0.0.1", t(2)));
+    assert!(!execute(
+        &mut store,
+        &mut log,
+        "scan:a",
+        "scan",
+        "10.0.0.1",
+        t(2)
+    ));
 
     let entries = verify_file(&path).unwrap();
-    assert_eq!(entries.len(), 1, "exactement une entrée d'audit, pas de doublon");
+    assert_eq!(
+        entries.len(),
+        1,
+        "exactement une entrée d'audit, pas de doublon"
+    );
 
     std::fs::remove_file(&path).ok();
 }
@@ -80,7 +98,9 @@ fn interruption_puis_resume_sans_perte_ni_doublon() {
 
     // Étape 2 « en vol » : on la déclare (begin) puis le run est coupé AVANT
     // l'émission/l'audit/la complétion — rien n'est journalisé pour elle.
-    store.begin("exploit:b", "exploit", "10.0.0.1", t(2)).unwrap();
+    store
+        .begin("exploit:b", "exploit", "10.0.0.1", t(2))
+        .unwrap();
 
     // --- Coupure, puis reprise ---
     let plan = resume(&mut store, t(10)).unwrap();
@@ -94,8 +114,17 @@ fn interruption_puis_resume_sans_perte_ni_doublon() {
 
     // On relance : l'étape 1 terminée est sautée (pas de re-sollicitation ni de
     // doublon d'audit), l'étape 2 incomplète est bel et bien ré-exécutée.
-    assert!(!execute(&mut store, &mut log, "scan:a", "scan", "10.0.0.1", t(11)));
-    let resumed = store.begin("exploit:b", "exploit", "10.0.0.1", t(12)).unwrap();
+    assert!(!execute(
+        &mut store,
+        &mut log,
+        "scan:a",
+        "scan",
+        "10.0.0.1",
+        t(11)
+    ));
+    let resumed = store
+        .begin("exploit:b", "exploit", "10.0.0.1", t(12))
+        .unwrap();
     assert_eq!(resumed, BeginOutcome::Resumed);
     let record = AuditRecord::new(
         "operateur",

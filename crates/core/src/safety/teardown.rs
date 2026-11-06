@@ -259,7 +259,10 @@ mod tests {
         let path = dir.join("hashes.tmp");
         {
             let temp = TempFile::create_with(&path, b"ntlm:deadbeef").unwrap();
-            assert!(temp.path().exists(), "le fichier temp existe pendant l'usage");
+            assert!(
+                temp.path().exists(),
+                "le fichier temp existe pendant l'usage"
+            );
         }
         assert!(!path.exists(), "le fichier temp est effacé au Drop");
     }

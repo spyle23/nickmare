@@ -383,7 +383,10 @@ mod tests {
     fn engagement_id_normalise_pour_nom_de_fichier() {
         assert_eq!(EngagementId::new("ACME/2026 #14").as_str(), "ACME_2026__14");
         assert_eq!(EngagementId::new("").as_str(), "engagement");
-        assert_eq!(EngagementId::new("pentest-14_v2.db").as_str(), "pentest-14_v2.db");
+        assert_eq!(
+            EngagementId::new("pentest-14_v2.db").as_str(),
+            "pentest-14_v2.db"
+        );
     }
 
     #[test]
@@ -418,7 +421,10 @@ mod tests {
         let mut store = InMemoryStore::new();
         store.put_result("scan:h:22", "ouvert").unwrap();
         store.put_result("scan:h:22", "ouvert").unwrap(); // rejeu
-        assert_eq!(store.get_result("scan:h:22").unwrap().as_deref(), Some("ouvert"));
+        assert_eq!(
+            store.get_result("scan:h:22").unwrap().as_deref(),
+            Some("ouvert")
+        );
     }
 
     #[test]

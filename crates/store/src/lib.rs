@@ -23,7 +23,7 @@ use std::path::Path;
 
 use chrono::{DateTime, Utc};
 use nickmare_core::engagement::{
-    BeginOutcome, EngagementStore, Operation, OpStatus, StoreError, Usage,
+    BeginOutcome, EngagementStore, OpStatus, Operation, StoreError, Usage,
 };
 use rusqlite::{params, Connection, OptionalExtension};
 

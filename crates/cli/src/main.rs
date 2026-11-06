@@ -2115,7 +2115,10 @@ mod tests {
         let out = resume_engagement(path_str, now()).unwrap();
         assert!(out.contains("dernier état cohérent"), "{out}");
         // Une terminée sautée, une récupérée incomplète à reprendre.
-        assert!(out.contains("Terminées (sautées, cible non re-sollicitée) : 1"), "{out}");
+        assert!(
+            out.contains("Terminées (sautées, cible non re-sollicitée) : 1"),
+            "{out}"
+        );
         assert!(out.contains("exploit:b"), "{out}");
 
         std::fs::remove_file(&path).ok();
