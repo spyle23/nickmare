@@ -224,7 +224,12 @@ fn cible_exclue_refuse_malgre_le_reseau() {
     let req = Request::new(now(), OP).with_attestation(&att);
     // 192.168.10.1 ∈ 192.168.10.0/24 mais explicitement exclu : les exclusions
     // priment (§3.1).
-    refuse_et_journalise(&mut gate, &req, &recon("192.168.10.1"), DenyReason::Excluded);
+    refuse_et_journalise(
+        &mut gate,
+        &req,
+        &recon("192.168.10.1"),
+        DenyReason::Excluded,
+    );
 }
 
 // --- Exploitation hors `allowed_hosts` (sans vrai moteur, §10.4) ------------
@@ -406,7 +411,11 @@ fn le_filet_ne_bloque_pas_dans_le_perimetre() {
 
     let mut module_calls = 0;
     let decision = run_via_gate(&mut gate, &req, &action, &mut module_calls);
-    assert_eq!(decision, Decision::Allow, "action légitime indûment bloquée");
+    assert_eq!(
+        decision,
+        Decision::Allow,
+        "action légitime indûment bloquée"
+    );
     assert_eq!(module_calls, 1, "le module doit tourner dans le périmètre");
 }
 

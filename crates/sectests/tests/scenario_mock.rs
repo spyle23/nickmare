@@ -137,7 +137,10 @@ async fn chaine_recon_scan_serviceid_cve_contre_mocks() {
     let scanned = provider.scan_ports(host, &[]).await;
     let ports = scanned.unwrap();
     let report = identify_gated(&mut gate, &req, OP, &provider, host, &ports, 0).await;
-    assert!(report.is_allowed(), "scan in-scope doit aboutir (§10.4 règle d'or)");
+    assert!(
+        report.is_allowed(),
+        "scan in-scope doit aboutir (§10.4 règle d'or)"
+    );
     assert_eq!(report.record().action, "recon.active");
     assert_eq!(report.record().result, "ok");
     let enriched = report.ports().unwrap().to_vec();
@@ -162,7 +165,9 @@ async fn chaine_recon_scan_serviceid_cve_contre_mocks() {
     let a_cve_nginx = cve_findings
         .iter()
         .any(|f| f.cve.as_deref() == Some("CVE-2021-23017"));
-    let a_critique = cve_findings.iter().any(|f| f.severity == Severity::Critical);
+    let a_critique = cve_findings
+        .iter()
+        .any(|f| f.severity == Severity::Critical);
     assert!(a_cve_openssh, "OpenSSH 9.1 doit corréler la CVE critique");
     assert!(a_cve_nginx, "nginx 1.18.0 doit corréler sa CVE");
     assert!(a_critique, "au moins un constat critique attendu");
