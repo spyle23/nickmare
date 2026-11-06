@@ -7,6 +7,11 @@
 //! #7, non réimplémentée ici) puis on en **rend la vue carte textuelle** — la
 //! brique apportée par ce ticket.
 
+// Fichier de tests d'intégration (100 % code de test) : les lints de sûreté du
+// workspace (unwrap/expect/panic interdits sur les chemins d'exécution, #27) ne
+// s'appliquent pas ici — un `unwrap` qui échoue EST le signal d'échec attendu.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use nickmare_core::traits::MockNetworkProvider;
 use nickmare_net::discovery;
 use nickmare_net::map::render_map;

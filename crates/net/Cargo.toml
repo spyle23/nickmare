@@ -4,6 +4,12 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+publish.workspace = true
+
+# Lints de sûreté partagés (issue #27) : interdit unwrap/expect/panic! sur les
+# chemins d'exécution (cf. [workspace.lints.clippy] + clippy.toml).
+[lints]
+workspace = true
 
 [dependencies]
 # Modèle (Host, NetworkMap), traits (NetworkProvider) et seau à jetons partagé

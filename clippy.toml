@@ -1,0 +1,15 @@
+# Configuration clippy (issue #27, cf. docs/ARCHITECTURE.md §11.4 & §12).
+#
+# Les lints `clippy::unwrap_used`, `clippy::expect_used` et `clippy::panic` sont
+# refusés au niveau du workspace (voir `[workspace.lints.clippy]` dans
+# Cargo.toml) afin qu'aucun `unwrap`/`expect`/`panic!` ne subsiste sur un
+# **chemin d'exécution** : une donnée réseau hostile ne doit jamais faire
+# paniquer l'outil (§12), les erreurs remontent via `Result`.
+#
+# Les options ci-dessous rétablissent ces facilités **uniquement dans les
+# tests** (`#[cfg(test)]` et crates `tests/`), où un `unwrap` qui échoue est le
+# signal d'échec attendu. Sans elles, activer les lints casserait toute la suite
+# de tests existante alors que ces usages y sont légitimes.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
