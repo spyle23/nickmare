@@ -720,11 +720,17 @@ Le niveau émulation sert à **quantifier** la capacité de détection de la dé
 
 ## 12. Sécurité du logiciel lui-même
 
-- **Minimiser les privilèges** : fonctionner sans root/admin autant que possible ; n'escalader que pour SYN/capture, et le documenter.
-- **Dépendances** : `cargo audit` + `cargo deny` en CI ; épingler les versions.
-- **Pas de secrets en clair** : clé API NVD via variable d'environnement, jamais commitée.
-- **Entrées non fiables** : tout ce qui vient du réseau (bannières, trames) est traité comme hostile → parsing défensif, pas d'`unwrap` sur des données externes.
-- **Protection du journal d'audit** : fichier en append-only, permissions restreintes.
+Durcissement transverse (issue #27), **appliqué et vérifié en continu** :
+
+- **Minimiser les privilèges** : l'outil fonctionne **sans root/admin** par défaut. La découverte détecte le privilège réseau (`net::privilege`, fail-safe : en cas de doute → non privilégié) et, sans `CAP_NET_RAW`, bascule automatiquement sur le repli `tcp_connect_only` avec un message opérateur clair, **sans paniquer**. L'escalade n'est requise que pour l'émission brute (SYN scan, capture ARP/ICMP) :
+  - **Linux** : capacité `CAP_NET_RAW` ciblée (via `setcap cap_net_raw+ep` sur le binaire, de préférence à un run en root) ; root fonctionne aussi mais est déconseillé.
+  - **Windows** : Npcap (driver de capture) ; détection au démarrage, message clair si absent (§13).
+  - Sans ce privilège, aucune fonctionnalité n'est bloquée brutalement : seules les sondes brutes sont indisponibles, tout le reste (TCP connect, identification de services, corrélation CVE, rapport) tourne sans privilège.
+- **Dépendances auditées** : `cargo audit` **et** `cargo deny` tournent en **jobs CI bloquants** (`audit`, `deny`) ; la fusion automatique les exige verts. Les binaires des outils sont **épinglés** côté CI, les dépendances figées (MSRV 1.83, sans Cargo.lock) ; `deny.toml` fixe les licences permissives autorisées, interdit sources inconnues/wildcards tiers, et n'ignore un avis RustSec qu'explicitement et justifié (contrainte MSRV, pas de correctif compatible). Les crates internes sont `publish = false` (jamais poussées sur crates.io).
+- **Pas d'`unwrap`/`expect`/`panic!` sur les chemins d'exécution** : imposé par clippy au niveau du workspace (`[workspace.lints.clippy]` : `unwrap_used`/`expect_used`/`panic` = `deny`), `clippy.toml` rétablissant ces facilités **uniquement dans les tests**. Les erreurs remontent via `Result`. Une donnée réseau hostile (bannière, trame) ne peut pas faire paniquer l'outil : parsing défensif, jamais d'`unwrap` sur des données externes.
+- **Pas de secrets en clair** : la clé API NVD se lit **uniquement** depuis l'environnement (`NVD_API_KEY`), jamais committée ni journalisée ; son type masque sa valeur à l'affichage `Debug`. `.gitignore` exclut `.env`, `*.key`, `*.pem`. Le scan de secrets (GitGuardian) garde l'historique git propre.
+- **Timeouts partout** (§11.4) : toute opération réseau est bornée (`connect_timeout`, `set_read_timeout`, relevés d'une durée nulle à un minimum) ; aucun blocage indéfini.
+- **Protection du journal d'audit** : fichier **append-only**, chaîné par hash (toute altération détectable) et à **permissions restreintes** (`0600` sur Unix) ; vérifié par tests (append-only, reprise de chaîne, permissions).
 
 ---
 
