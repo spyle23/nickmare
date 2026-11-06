@@ -1,0 +1,63 @@
+name: Fuzz (nightly, non bloquant)
+
+# Fuzzing périodique des parsers (issue #28, §10.4) avec cargo-fuzz.
+#
+# Ce workflow est DÉLIBÉRÉMENT SÉPARÉ de ci.yml et **jamais bloquant** :
+# - il ne tourne pas sur les pull requests (aucune incidence sur la CI de PR
+#   ni sur le merge automatique, qui ne dépend que des jobs de ci.yml) ;
+# - cargo-fuzz exige le toolchain nightly + libFuzzer, incompatibles avec le pin
+#   MSRV 1.83 stable du workspace — d'où un crate `fuzz/` HORS workspace.
+#
+# Le filet de fuzzing BLOQUANT vit dans le job `test` de ci.yml, via les tests
+# déterministes « type fuzz » sur stable (crates/sectests/tests/fuzz_parsers.rs).
+# Ici : exploration plus large, planifiée, best-effort.
+
+on:
+  schedule:
+    # Lundi 04:30 UTC — hebdomadaire, hors heures de pointe.
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: "Durée (s) par cible"
+        required: false
+        default: "60"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [banner, scope_toml, wifi_pcap]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain nightly (requis par cargo-fuzz + libFuzzer)
+        uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: Installer cargo-fuzz (version épinglée, §12)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz@0.12.0
+      - name: Run court de la cible ${{ matrix.target }}
+        env:
+          MAX_TOTAL_TIME: ${{ github.event.inputs.max_total_time || '60' }}
+        run: |
+          cargo +nightly fuzz run "${{ matrix.target }}" --fuzz-dir fuzz \
+            -- -max_total_time="$MAX_TOTAL_TIME" -rss_limit_mb=2048
+      - name: Publier les reproducteurs trouvés (le cas échéant)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/
+          if-no-files-found: ignore

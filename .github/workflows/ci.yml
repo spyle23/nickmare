@@ -75,6 +75,53 @@ jobs:
       - name: Build
         run: cargo build --all-features --workspace
 
+  # Contrat de CI §10.4 (issue #28) : la **suite négative transverse** de sécurité
+  # et les cibles de fuzz déterministes (crate `nickmare-sectests`) sont un job
+  # BLOQUANT et explicite — le merge automatique l'exige vert (cf. `auto-merge`).
+  # Rendre ce contrat visible et nommé garantit qu'il ne peut pas être dilué dans
+  # le job `test` global. Hors ligne (aucun réseau au runtime des tests).
+  negatif:
+    needs: detect
+    if: needs.detect.outputs.has_cargo == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Suite négative + fuzz déterministe (§10.4, bloquant)
+        run: cargo test -p nickmare-sectests --all-features
+
+  # Couverture suivie (issue #28, §10.5) : rapport publié en artifact pour `core`.
+  # INFORMATIF et NON bloquant (`continue-on-error`) : l'objectif > 80 % est
+  # INDICATIF (énoncé #28) ; on ne fait pas du seuil une porte de merge qui
+  # rendrait la CI flaky. La mesure guide, elle ne bloque pas.
+  coverage:
+    needs: detect
+    if: needs.detect.outputs.has_cargo == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Installer cargo-llvm-cov (version épinglée, §12)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.6.13
+      - name: Mesurer la couverture de core (indicative, > 80 % visé)
+        run: |
+          cargo llvm-cov --package nickmare-core --all-features --no-report
+          cargo llvm-cov report --summary-only
+          cargo llvm-cov report --lcov --output-path lcov-core.info
+      - name: Publier le rapport de couverture de core
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-core
+          path: lcov-core.info
+          if-no-files-found: warn
+
   # Audit des avis de sécurité RustSec sur l'arbre de dépendances (issue #27,
   # §12). BLOQUANT : la CI échoue si `cargo audit` relève une vulnérabilité ou
   # une crate yankée. Contrairement aux tests du projet (hors ligne), ce job a
@@ -155,13 +202,14 @@ jobs:
   # Merge automatique : ne s'exécute que sur une PR portant le label `auto-merge`,
   # et seulement si la CI est verte (ou légitimement ignorée faute de code Rust).
   auto-merge:
-    needs: [detect, fmt_clippy, test, audit, deny, scripts]
+    needs: [detect, fmt_clippy, test, negatif, audit, deny, scripts]
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'auto-merge') &&
       (needs.fmt_clippy.result == 'success' || needs.fmt_clippy.result == 'skipped') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.negatif.result == 'success' || needs.negatif.result == 'skipped') &&
       (needs.audit.result == 'success' || needs.audit.result == 'skipped') &&
       (needs.deny.result == 'success' || needs.deny.result == 'skipped') &&
       needs.scripts.result == 'success'
