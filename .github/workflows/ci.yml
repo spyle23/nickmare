@@ -112,10 +112,22 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-deny@0.20.2
-      - name: Générer un Cargo.lock éphémère
+      # Lock résolu par la toolchain épinglée (1.83, via rust-toolchain.toml) :
+      # c'est l'arbre EXACT qui est livré. `generate-lockfile` n'ouvre que l'index
+      # (pas les manifestes complets), donc l'absence de parseur edition 2024 en
+      # 1.83 ne le gêne pas.
+      - name: Générer un Cargo.lock éphémère (versions résolues en MSRV 1.83)
         run: cargo generate-lockfile
+      # cargo-deny lit le manifeste de CHAQUE crate de l'arbre, y compris des
+      # dépendances target-gated jamais compilées (ex. backtrace→gimli tiré par
+      # cfg(tokio_taskdump)). Certains manifestes récents sont en edition 2024,
+      # que cargo 1.83 ne sait pas parser. On analyse donc l'arbre FIGÉ en 1.83
+      # (--locked sur le lock ci-dessus) avec la toolchain stable du runner, seule
+      # capable de parser ces manifestes — sans changer les versions livrées.
       - name: cargo deny check (bloquant)
-        run: cargo deny check advisories bans licenses sources
+        env:
+          RUSTUP_TOOLCHAIN: stable
+        run: cargo deny --locked check advisories bans licenses sources
 
   # Tests des scripts d'outillage CI (sans réseau : `gh` est bouchonné).
   scripts:
