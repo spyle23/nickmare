@@ -29,10 +29,19 @@
 //! nom/produit/version par empreinte **pure et défensive**, et alimente carte et
 //! findings — le tout confiné au gate ([`service_id::identify_gated`]).
 //!
+//! L'**inventaire WiFi passif** (#15, Phase 4) complète la recon N1 dans
+//! [`wifi`] : écoute **strictement passive** (aucune trame émise) des beacons et
+//! probe-responses 802.11, par **rejeu de captures pcap** (radiotap ou 802.11
+//! brut) pour en extraire SSID, BSSID, canal, chiffrement (ouvert/WEP/WPA/WPA2/
+//! WPA3) et puissance. La capture en direct (mode monitor Linux / Npcap Windows)
+//! se branche derrière la même source en réception seule, avec un repli clair
+//! tant que le pilote n'est pas disponible.
+//!
 //! Tout ce qui touche une socket réelle ou un privilège est soit **portable et
 //! testé en loopback** (repli TCP, UDP), soit **isolé derrière une abstraction**
-//! et réservé au labo (émission brute ARP/ICMP/SYN), de sorte que la CI reste
-//! verte sans réseau ni root (Windows + Linux). Le WiFi passif suit en Phase 4.
+//! et réservé au labo (émission brute ARP/ICMP/SYN), soit **purement passif et
+//! rejoué sur fixtures** (WiFi), de sorte que la CI reste verte sans réseau, ni
+//! root, ni matériel WiFi (Windows + Linux).
 
 pub mod arp;
 pub mod discovery;
@@ -45,6 +54,7 @@ pub mod probe;
 pub mod provider;
 pub mod service_id;
 pub mod tcp;
+pub mod wifi;
 
 /// Nom de la crate — jalon trivial « hello workspace » (issue #1) : prouve que
 /// la matrice CI exécute bien les tests de chaque crate sur Windows et Linux.
