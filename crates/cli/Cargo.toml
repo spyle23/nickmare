@@ -24,6 +24,10 @@ nickmare-net = { path = "../net" }
 # État persistant SQLite d'un engagement (issue #26, §11.2) : support de
 # `nickmare resume <engagement>`.
 nickmare-store = { path = "../store" }
+# Socle de rapport N1 (issue #16, §9 Phase 5) : `nickmare report --format
+# html|json` lit l'état d'engagement via le trait `EngagementStore` (implémenté
+# par `SqliteStore`) et rend HTML/JSON. Pur, sans I/O réseau.
+nickmare-report = { path = "../report" }
 # Horloge (`Utc::now()`) pour la validation temporelle au moment de l'appel.
 chrono = "0.4.38"
 # Désérialisation de la carte réseau (NetworkMap) pour `nickmare map <carte.json>`.

@@ -12,3 +12,29 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# Modèle partagé (NetworkMap, Host, Finding, Severity…) et trait d'état
+# d'engagement (EngagementStore) : le rapport agrège ces types purs et lit l'état
+# d'un engagement via le même trait que `nickmare-store` (SqliteStore). On ne
+# dépend PAS de `nickmare-store` lui-même (ni de rusqlite/tokio) : le rapport est
+# pur et testable par mock (InMemoryStore de `core`), le binaire `nickmare`
+# branchant le store réel.
+nickmare-core = { path = "../core" }
+
+# Rendu HTML par templates **compilés et typés** (US-H1). Version figée (=) comme
+# le reste de l'arbre : la toolchain est épinglée à 1.83 (rust-toolchain.toml) et
+# le dépôt n'a PAS de Cargo.lock. askama 0.12.1 est la dernière de la ligne 0.12,
+# restée en edition 2021 avec un arbre transitif léger — askama_derive 0.12.5
+# (nom 7, proc-macro2/quote/syn 2), askama_escape 0.10.3 — tous parseables et
+# compilables par cargo 1.83, contrairement aux lignes 0.13+ qui relèvent le MSRV.
+# `default-features = false` : on n'active ni le parsing d'askama.toml (`config`),
+# ni les filtres optionnels (`humansize`/`num-traits`/`urlencode`) — on n'a besoin
+# que du trait `Template`, du dérive et de l'échappement HTML automatique (actif
+# d'office pour l'extension .html, garde-fou anti-injection des bannières/noms).
+askama = { version = "=0.12.1", default-features = false }
+
+# Export JSON complet (US-H2) + (dé)sérialisation du modèle de rapport. Mêmes
+# versions que `core` (MSRV 1.83, sans Cargo.lock). La feature `serde` de chrono
+# fournit la (dé)sérialisation des horodatages d'opérations et du rapport.
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+chrono = { version = "0.4.38", features = ["serde"] }
