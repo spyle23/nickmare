@@ -86,7 +86,9 @@ mod tests {
     use std::net::IpAddr;
 
     use nickmare_core::engagement::InMemoryStore;
-    use nickmare_core::model::{Host, HostRole, OsGuess, Port, PortState, Proto, Service, Severity};
+    use nickmare_core::model::{
+        Host, HostRole, OsGuess, Port, PortState, Proto, Service, Severity,
+    };
 
     fn ip(addr: &str) -> IpAddr {
         addr.parse().expect("ip de test")

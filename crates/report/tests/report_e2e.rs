@@ -18,7 +18,7 @@ use nickmare_core::engagement::{EngagementStore, InMemoryStore};
 use nickmare_core::model::{
     Finding, Host, HostRole, NetworkMap, OsGuess, Port, PortState, Proto, Service, Severity,
 };
-use nickmare_report::{FINDINGS_KEY, NETWORK_MAP_KEY, ReportModel, load_from_store};
+use nickmare_report::{load_from_store, ReportModel, FINDINGS_KEY, NETWORK_MAP_KEY};
 
 fn ip(addr: &str) -> IpAddr {
     addr.parse().unwrap()

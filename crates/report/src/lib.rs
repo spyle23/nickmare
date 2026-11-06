@@ -31,7 +31,7 @@ pub mod store;
 
 pub use error::ReportError;
 pub use model::{OperationView, ReportMeta, ReportModel, SeverityCount, Summary, UsageView};
-pub use store::{FINDINGS_KEY, NETWORK_MAP_KEY, load_from_store};
+pub use store::{load_from_store, FINDINGS_KEY, NETWORK_MAP_KEY};
 
 /// Nom de la crate — jalon trivial « hello workspace » (issue #1) : prouve que
 /// la matrice CI exécute bien les tests de chaque crate sur Windows et Linux.

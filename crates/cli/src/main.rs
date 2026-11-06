@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use nickmare_core::audit::AuditLog;
-use nickmare_core::engagement::{EngagementId, resume};
+use nickmare_core::engagement::{resume, EngagementId};
 use nickmare_core::gate::{Decision, Request};
 use nickmare_core::lab::LabSession;
 use nickmare_core::model::{Finding, NetworkMap, Port, PortState, Proto, Service, Severity};
@@ -1429,9 +1429,18 @@ fn run_report(args: &[String]) -> Result<String, String> {
         return Err(format!("engagement à rapporter manquant\n\n{}", usage()));
     };
     let Some(format) = format else {
-        return Err(format!("format manquant : précisez --format\n\n{}", usage()));
+        return Err(format!(
+            "format manquant : précisez --format\n\n{}",
+            usage()
+        ));
     };
-    report_cmd(&path, &format, out.as_deref(), engagement.as_deref(), Utc::now())
+    report_cmd(
+        &path,
+        &format,
+        out.as_deref(),
+        engagement.as_deref(),
+        Utc::now(),
+    )
 }
 
 /// Génère le rapport Niveau 1 d'un engagement depuis sa base SQLite (§9 Phase 5).
@@ -1467,8 +1476,12 @@ fn report_cmd(
     let model = load_from_store(&store, &name, &tool, now)
         .map_err(|err| format!("génération du rapport : {err}"))?;
     let content = match format {
-        "json" => model.to_json().map_err(|err| format!("export JSON : {err}"))?,
-        _ => model.to_html().map_err(|err| format!("rendu HTML : {err}"))?,
+        "json" => model
+            .to_json()
+            .map_err(|err| format!("export JSON : {err}"))?,
+        _ => model
+            .to_html()
+            .map_err(|err| format!("rendu HTML : {err}"))?,
     };
     match out {
         Some(dest) => {
