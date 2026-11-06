@@ -198,11 +198,12 @@ fn snmp_is_v3(service: Option<&Service>) -> bool {
 /// mots-clés (défensif : on ne fait que lire des chaînes déjà capturées).
 fn service_haystack(service: &Service) -> String {
     let mut hay = service.name.to_lowercase();
-    for extra in [&service.product, &service.version, &service.banner] {
-        if let Some(value) = extra {
-            hay.push(' ');
-            hay.push_str(&value.to_lowercase());
-        }
+    for value in [&service.product, &service.version, &service.banner]
+        .into_iter()
+        .flatten()
+    {
+        hay.push(' ');
+        hay.push_str(&value.to_lowercase());
     }
     hay
 }
