@@ -239,10 +239,7 @@ mod tests {
     #[test]
     fn reutilisation_rend_non_conforme() {
         // Deux comptes distincts partagent le même clair → réutilisation.
-        let recovered = vec![
-            rec("alice", "Zx9!qWerT2@kP"),
-            rec("bob", "Zx9!qWerT2@kP"),
-        ];
+        let recovered = vec![rec("alice", "Zx9!qWerT2@kP"), rec("bob", "Zx9!qWerT2@kP")];
         let assessment = evaluate(&report(4, recovered), &PasswordPolicy::default());
         assert!(has(&assessment, "réutilisation"));
         assert_eq!(assessment.verdict, PolicyVerdict::NonCompliant);
