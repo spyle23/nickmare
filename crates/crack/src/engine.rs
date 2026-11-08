@@ -602,10 +602,11 @@ impl OfflineOutcome {
 /// chemin vers le moteur.
 ///
 /// Le gate vérifie la capacité `cracking` (étape 3), le confinement au périmètre et
-/// les plafonds. Sur refus → le moteur **n'est pas** actionné : [`OfflineOutcome::Blocked`]
-/// + audit `blocked_*`. Sur autorisation → le moteur produit un [`CrackReport`] dont
-/// on dérive le [`CrackResult`](nickmare_core::model::CrackResult) (statistiques +
-/// verdict de politique), rendu dans [`OfflineOutcome::Done`] + audit `crack.offline`.
+/// les plafonds. Sur refus, le moteur **n'est pas** actionné : on renvoie
+/// [`OfflineOutcome::Blocked`] et l'audit `blocked_*`. Sur autorisation, le moteur
+/// produit un [`CrackReport`] dont on dérive le
+/// [`CrackResult`](nickmare_core::model::CrackResult) (statistiques et verdict de
+/// politique), rendu dans [`OfflineOutcome::Done`] avec l'audit `crack.offline`.
 pub async fn crack_offline_through_gate(
     gate: &mut Gate,
     req: &Request<'_>,

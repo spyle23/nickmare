@@ -35,8 +35,7 @@ use async_trait::async_trait;
 use nickmare_core::safety::teardown::{ResourceKind, TeardownGuard, TempFile};
 
 use crate::engine::{
-    CrackEngine, CrackError, CrackReport, CrackRequest, HashEntry, HashType, MaskedSecret,
-    Recovered,
+    CrackEngine, CrackError, CrackReport, CrackRequest, HashEntry, MaskedSecret, Recovered,
 };
 
 // --- Outil & disponibilité --------------------------------------------------
@@ -491,7 +490,7 @@ mod tests {
         CrackRequest {
             target: ip(),
             source: "dump lab".to_string(),
-            hash_type: HashType::Ntlm,
+            hash_type: crate::engine::HashType::Ntlm,
             hashes: vec![
                 HashEntry::new("alice", H_ALICE),
                 HashEntry::new("bob", H_BOB),
