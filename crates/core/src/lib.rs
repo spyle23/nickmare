@@ -5,11 +5,14 @@
 //! (`target`), le mode laboratoire voie C (`lab`), le journal d'audit chaîné
 //! (`audit`), les garde-fous obligatoires (`gate`, le « mur », cf.
 //! `docs/ARCHITECTURE.md` §3.2), la limitation de débit partagée (`rate`), les
-//! traits d'abstraction (`traits`), la sûreté opérationnelle transverse
-//! (`safety`, §11.1) et la fiabilité/reprise d'engagement (`engagement`, §11.2).
+//! traits d'abstraction (`traits`), l'abstraction du moteur d'exploitation N2 et
+//! son mock déterministe (`exploit`, §9 Phase 6), la sûreté opérationnelle
+//! transverse (`safety`, §11.1) et la fiabilité/reprise d'engagement
+//! (`engagement`, §11.2).
 
 pub mod audit;
 pub mod engagement;
+pub mod exploit;
 pub mod gate;
 pub mod lab;
 pub mod model;

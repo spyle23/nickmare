@@ -13,7 +13,7 @@ use std::net::IpAddr;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::model::{CrackResult, ExploitAttempt, Host, Port, Service};
+use crate::model::{CrackResult, Host, Port, Service};
 
 /// Erreur d'une opération réseau abstraite. Les entrées venant du réseau sont
 /// hostiles par principe (§12) : les implémentations réelles ne doivent jamais
@@ -47,13 +47,11 @@ pub trait NetworkProvider: Send + Sync {
     async fn read_banner(&self, host: IpAddr, port: u16) -> NetResult<Option<Service>>;
 }
 
-/// Abstraction du moteur d'exploitation (N2). Esquisse : l'implémentation réelle
-/// (client Metasploit RPC, mode validation d'abord) arrive en Phase 6.
-#[async_trait]
-pub trait ExploitEngine: Send + Sync {
-    /// Exécute une tentative et renvoie son issue renseignée.
-    async fn run(&self, attempt: ExploitAttempt) -> NetResult<ExploitAttempt>;
-}
+/// Abstraction du moteur d'exploitation (N2) : finalisée dans le module
+/// [`exploit`](crate::exploit) (trait + mock déterministe, issue #18, Phase 6).
+/// Réexportée ici pour conserver le point d'accès « traits d'abstraction »
+/// (`NetworkProvider` / `ExploitEngine` / `CrackEngine`, §4/§6).
+pub use crate::exploit::ExploitEngine;
 
 /// Abstraction du moteur de craquage (N3). Esquisse : l'implémentation réelle
 /// (orchestration hashcat/John) arrive en Phase 7.
