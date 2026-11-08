@@ -1,0 +1,3 @@
+root:Toor1234
+service:P@ssw0rd2021
+2 password hashes cracked, 1 left

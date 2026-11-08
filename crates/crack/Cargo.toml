@@ -12,3 +12,32 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+# Trait `CrackEngine`/`SprayEngine` (issue #21) : types de modèle
+# (`CrackResult`/`PolicyVerdict`), gate (le « mur »), audit chaîné et teardown
+# RAII (§11.1) — le crate **orchestre et trace** ces briques pures, il ne
+# réimplémente aucun garde-fou (ceux-ci restent dans `core::gate`).
+nickmare-core = { path = "../core" }
+
+# Traits **asynchrones et objet-sûrs** (`&dyn CrackEngine` / `&dyn SprayEngine`),
+# comme `ExploitEngine`/`NetworkProvider`. Même version que `core` (MSRV 1.83,
+# sans Cargo.lock).
+async-trait = "0.1.83"
+
+# Masquage **par défaut** des secrets craqués à la sérialisation (US-F1) :
+# `MaskedSecret` implémente un `Serialize` qui n'émet jamais le clair. Même
+# version que `core`.
+serde = { version = "1.0.210", features = ["derive"] }
+
+[dev-dependencies]
+# Runtime des tests asynchrones (moteurs mock + orchestration gate). tokio figé
+# (=) comme partout (MSRV 1.83), features minimales, AUCUNE I/O réseau.
+tokio = { version = "=1.40.0", features = ["macros", "rt"] }
+
+# Vérifie que le masquage tient à la **sérialisation JSON** (US-F1) : on sérialise
+# un rapport et on prouve qu'aucun clair ne fuit. En test seulement.
+serde_json = "1.0.128"
+
+# Horodatage des requêtes de gate dans les tests d'intégration (`Request::new`
+# attend un `DateTime<Utc>`). La crate n'utilise PAS chrono hors tests — d'où la
+# dev-dependency. Même version que `core` (MSRV 1.83, sans Cargo.lock).
+chrono = "0.4.38"
