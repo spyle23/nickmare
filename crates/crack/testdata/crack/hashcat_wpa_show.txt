@@ -1,0 +1,1 @@
+WPA*02*0102030405060708*deadbeefcafe:MyWifiPass2021
