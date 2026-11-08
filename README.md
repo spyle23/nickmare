@@ -16,6 +16,8 @@ de la sécurité réseau en **laboratoire contrôlé et isolé**.
 - [`docs/OPERATOR_GUIDE.md`](docs/OPERATOR_GUIDE.md) — guide opérateur, flux d'intrusion
   simulée, modèle de scope, et [kill-switch réseau du lab](docs/OPERATOR_GUIDE.md#kill-switch-réseau-du-lab).
 - [`docs/TESTING.md`](docs/TESTING.md) — stratégie de tests.
+- [`docs/REVIEW_GATE_N2.md`](docs/REVIEW_GATE_N2.md) — revue des garde-fous avant N2–N4
+  (jalon bloquant, §9).
 
 ## Prérequis système
 
