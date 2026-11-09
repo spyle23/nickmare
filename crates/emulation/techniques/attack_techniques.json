@@ -1,0 +1,47 @@
+{
+  "version": "MITRE ATT&CK (sous-ensemble purple team Nickmare, identifiants seuls)",
+  "techniques": [
+    {
+      "id": "T1595",
+      "name": "Active Scanning",
+      "tactic": "Reconnaissance",
+      "description": "Sondage actif d'hôtes/services pour mesurer la détection."
+    },
+    {
+      "id": "T1046",
+      "name": "Network Service Discovery",
+      "tactic": "Discovery",
+      "description": "Énumération des services réseau accessibles en périmètre."
+    },
+    {
+      "id": "T1018",
+      "name": "Remote System Discovery",
+      "tactic": "Discovery",
+      "description": "Découverte d'autres hôtes depuis un pied d'appui autorisé."
+    },
+    {
+      "id": "T1021",
+      "name": "Remote Services",
+      "tactic": "Lateral Movement",
+      "description": "Mouvement latéral via des services distants (SSH, SMB, RDP)."
+    },
+    {
+      "id": "T1570",
+      "name": "Lateral Tool Transfer",
+      "tactic": "Lateral Movement",
+      "description": "Transfert d'un outil entre deux hôtes pour tester la détection."
+    },
+    {
+      "id": "T1071",
+      "name": "Application Layer Protocol",
+      "tactic": "Command and Control",
+      "description": "Canal de commande émulé sur un protocole courant (HTTP/DNS)."
+    },
+    {
+      "id": "T1562",
+      "name": "Impair Defenses",
+      "tactic": "Defense Evasion",
+      "description": "Tentative d'évasion des contrôles défensifs, pour les mesurer."
+    }
+  ]
+}
