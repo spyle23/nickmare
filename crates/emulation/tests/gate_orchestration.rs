@@ -240,7 +240,9 @@ async fn stealth_trace_en_clair_cote_operateur_meme_masque_pour_la_cible() {
     .unwrap();
 
     // L'exécution est tracée, horodatée, profil stealth — malgré l'évasion cible.
-    let execution = outcome.execution().expect("exécution tracée même en stealth");
+    let execution = outcome
+        .execution()
+        .expect("exécution tracée même en stealth");
     assert_eq!(execution.profile, AdversaryProfile::Stealth);
     assert_eq!(execution.performed_at, now());
 

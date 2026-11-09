@@ -294,8 +294,9 @@ impl EmulationOutcome {
     #[must_use]
     pub fn audit(&self) -> &AuditRecord {
         match self {
-            EmulationOutcome::Blocked { audit, .. }
-            | EmulationOutcome::Executed { audit, .. } => audit,
+            EmulationOutcome::Blocked { audit, .. } | EmulationOutcome::Executed { audit, .. } => {
+                audit
+            }
         }
     }
 }
