@@ -221,7 +221,6 @@ fn page_from(model: &ReportModel) -> ReportPage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::net::IpAddr;
 
     use chrono::{DateTime, Utc};
