@@ -22,8 +22,8 @@ use chrono::{DateTime, Utc};
 use nickmare_core::engagement::{EngagementStore, InMemoryStore};
 use nickmare_core::model::{
     AdversaryProfile, AttackExecution, CrackResult, DetectionVerdict, ExploitAttempt, ExploitMode,
-    ExploitOutcome, Finding, Host, HostRole, NetworkMap, OsGuess, PivotLink, Port, PortState, Proto,
-    Service, Severity,
+    ExploitOutcome, Finding, Host, HostRole, NetworkMap, OsGuess, PivotLink, Port, PortState,
+    Proto, Service, Severity,
 };
 use nickmare_crack::engine::{CrackReport, HashType, MaskedSecret, Recovered};
 use nickmare_crack::policy::PasswordPolicy;

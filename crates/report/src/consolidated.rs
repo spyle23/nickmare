@@ -79,7 +79,10 @@ pub fn policy_verdict_key(verdict: PolicyVerdict) -> &'static str {
 /// exploit). `NotVulnerable`/`Failed` ne comptent pas.
 #[must_use]
 pub fn is_confirmed_exploit(outcome: ExploitOutcome) -> bool {
-    matches!(outcome, ExploitOutcome::Vulnerable | ExploitOutcome::Success)
+    matches!(
+        outcome,
+        ExploitOutcome::Vulnerable | ExploitOutcome::Success
+    )
 }
 
 /// Taux `part / total` borné (0.0 si `total == 0`, fail-safe anti-division).
