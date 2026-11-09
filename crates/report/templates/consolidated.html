@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapport consolidé Nickmare — {{ engagement }}</title>
+<style>
+:root { color-scheme: light dark; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: 2rem 1.5rem;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+h2 {
+  font-size: 1.2rem;
+  margin-top: 2rem;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 0.25rem;
+}
+h3 { font-size: 1rem; margin-bottom: 0.25rem; }
+.meta { color: #555; font-size: 0.9rem; }
+.cards { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
+.card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  min-width: 7rem;
+}
+.card .num { font-size: 1.5rem; font-weight: 700; }
+.card .lbl { font-size: 0.8rem; color: #666; }
+table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1.5rem; }
+th, td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #e8e8e8;
+  vertical-align: top;
+}
+th { background: #f0f0f0; font-size: 0.85rem; }
+.host { background: #fff; border: 1px solid #e0e0e0; border-radius: 0.5rem; padding: 1rem; margin: 1rem 0; }
+.badge { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 0.75rem; font-size: 0.75rem; font-weight: 700; }
+.compromised { background: #b00020; color: #fff; }
+.sev-critical { color: #b00020; font-weight: 700; }
+.sev-high { color: #d35400; font-weight: 700; }
+.sev-medium { color: #b7950b; }
+.sev-low { color: #2471a3; }
+.sev-info { color: #566573; }
+.port-open { color: #1e8449; font-weight: 700; }
+.port-closed { color: #808b96; }
+.port-filtered { color: #b7950b; }
+.op-done { color: #1e8449; }
+.op-incomplete { color: #b00020; }
+.op-pending { color: #b7950b; }
+.exp-confirmed { color: #b00020; font-weight: 700; }
+.exp-negative { color: #1e8449; }
+.pol-compliant { color: #1e8449; font-weight: 700; }
+.pol-weak { color: #b7950b; font-weight: 700; }
+.pol-noncompliant { color: #b00020; font-weight: 700; }
+.pol-unknown { color: #566573; }
+.det-detected { color: #1e8449; font-weight: 700; }
+.det-partial { color: #b7950b; font-weight: 700; }
+.det-notdetected { color: #b00020; font-weight: 700; }
+.det-unknown { color: #566573; }
+.origin-siem { color: #6c3483; font-weight: 700; }
+.origin-operateur { color: #1f618d; }
+.empty { color: #777; font-style: italic; }
+footer { margin-top: 2.5rem; color: #777; font-size: 0.8rem; border-top: 1px solid #ddd; padding-top: 0.75rem; }
+</style>
+</head>
+<body>
+<header>
+<h1>Rapport consolidé d'audit — {{ engagement }}</h1>
+<p class="meta">
+  {{ tool }} · Niveaux {{ level }} · périmètre {{ scope_network }} · généré le {{ generated_at }}
+</p>
+</header>
+
+<section>
+<h2>Résumé exécutif</h2>
+<div class="cards">
+  <div class="card"><div class="num">{{ host_total }}</div><div class="lbl">hôte(s)</div></div>
+  <div class="card"><div class="num">{{ open_services }}</div><div class="lbl">service(s) ouvert(s)</div></div>
+  <div class="card"><div class="num">{{ finding_total }}</div><div class="lbl">constat(s)</div></div>
+  <div class="card"><div class="num">{{ compromised }}</div><div class="lbl">compromis</div></div>
+  <div class="card"><div class="num">{{ pivot_total }}</div><div class="lbl">pivot(s)</div></div>
+</div>
+<div class="cards">
+  <div class="card"><div class="num">{{ exploits_confirmed }}/{{ exploit_attempts }}</div><div class="lbl">exploit(s) confirmé(s)</div></div>
+  <div class="card"><div class="num">{{ crack_rate }}</div><div class="lbl">taux de craquage</div></div>
+  <div class="card"><div class="num"><span class="{{ policy_verdict_css }}">{{ policy_verdict }}</span></div><div class="lbl">verdict de politique</div></div>
+  <div class="card"><div class="num">{{ techniques_emitted }}</div><div class="lbl">technique(s) ATT&amp;CK</div></div>
+  <div class="card"><div class="num">{{ detection_rate }}</div><div class="lbl">taux de détection</div></div>
+  <div class="card"><div class="num">{{ mean_mttd }}</div><div class="lbl">MTTD moyen</div></div>
+</div>
+<table>
+<thead><tr><th>Gravité</th><th>Constats</th></tr></thead>
+<tbody>
+{% for row in summary_rows %}
+<tr><td><span class="{{ row.css }}">{{ row.label }}</span></td><td>{{ row.count }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</section>
+
+<section>
+<h2>Carte réseau annotée</h2>
+<p class="meta">Périmètre attesté : {{ scope_network }} — hôtes compromis et chemins de pivot mis en évidence.</p>
+{% if host_total == 0 %}
+<p class="empty">Aucun hôte découvert.</p>
+{% else %}
+{% for host in hosts %}
+<div class="host">
+<h3>
+  {{ host.ip }} — {{ host.role }}
+  {% if host.compromised %}<span class="badge compromised">COMPROMIS</span>{% endif %}
+</h3>
+<table>
+<tbody>
+<tr><th>Hostname</th><td>{{ host.hostname }}</td></tr>
+<tr><th>OS</th><td>{{ host.os }}</td></tr>
+<tr><th>MAC</th><td>{{ host.mac }}</td></tr>
+</tbody>
+</table>
+<h3>Ports</h3>
+{% if host.ports.is_empty() %}
+<p class="empty">Aucun port observé.</p>
+{% else %}
+<table>
+<thead><tr><th>Port</th><th>Proto</th><th>État</th><th>Service</th></tr></thead>
+<tbody>
+{% for port in host.ports %}
+<tr>
+  <td>{{ port.number }}</td>
+  <td>{{ port.proto }}</td>
+  <td><span class="{{ port.state_css }}">{{ port.state }}</span></td>
+  <td>{{ port.service }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+<h3>Chemins de pivot</h3>
+{% if pivot_total == 0 %}
+<p class="empty">Aucun chemin de pivot établi.</p>
+{% else %}
+<table>
+<thead><tr><th>Source</th><th>Cible</th><th>Via</th><th>Horodatage</th></tr></thead>
+<tbody>
+{% for pivot in pivots %}
+<tr><td>{{ pivot.from }}</td><td>{{ pivot.to }}</td><td>{{ pivot.via }}</td><td>{{ pivot.at }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+</section>
+
+<section>
+<h2>Constats ({{ finding_total }})</h2>
+{% if finding_total == 0 %}
+<p class="empty">Aucun constat relevé.</p>
+{% else %}
+{% for finding in findings %}
+<div class="host">
+<h3><span class="{{ finding.severity_css }}">[{{ finding.severity }}]</span> {{ finding.title }}</h3>
+<table>
+<tbody>
+<tr><th>Hôte</th><td>{{ finding.host }}</td></tr>
+<tr><th>Port</th><td>{{ finding.port }}</td></tr>
+<tr><th>CVE</th><td>{{ finding.cve }}</td></tr>
+<tr><th>Description</th><td>{{ finding.description }}</td></tr>
+<tr><th>Recommandation</th><td>{{ finding.recommendation }}</td></tr>
+</tbody>
+</table>
+</div>
+{% endfor %}
+{% endif %}
+</section>
+
+<section>
+<h2>Niveau 2 — Exploits confirmés</h2>
+{% if exploits.is_empty() %}
+<p class="empty">Aucune tentative d'exploitation tracée.</p>
+{% else %}
+<table>
+<thead><tr><th>Hôte</th><th>CVE</th><th>Module</th><th>Mode</th><th>Issue</th><th>Validé par</th><th>Preuve</th></tr></thead>
+<tbody>
+{% for exploit in exploits %}
+<tr>
+  <td>{{ exploit.host }}</td>
+  <td>{{ exploit.cve }}</td>
+  <td>{{ exploit.module }}</td>
+  <td>{{ exploit.mode }}</td>
+  <td><span class="{{ exploit.outcome_css }}">{{ exploit.outcome }}</span></td>
+  <td>{{ exploit.confirmed_by }}</td>
+  <td>{{ exploit.evidence }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+</section>
+
+<section>
+<h2>Niveau 3 — Craquage &amp; politique</h2>
+<p class="meta">Statistiques uniquement : aucun mot de passe en clair n'est restitué (secrets masqués, §7).</p>
+<p class="meta">Cumul : {{ hashes_cracked }} / {{ hashes_attempted }} hash(es) craqué(s).</p>
+{% if cracking.is_empty() %}
+<p class="empty">Aucun craquage mené.</p>
+{% else %}
+<table>
+<thead><tr><th>Source</th><th>Type</th><th>Tentés</th><th>Craqués</th><th>Taux</th><th>Verdict</th><th>Patterns faibles</th></tr></thead>
+<tbody>
+{% for crack in cracking %}
+<tr>
+  <td>{{ crack.source }}</td>
+  <td>{{ crack.hash_type }}</td>
+  <td>{{ crack.attempted }}</td>
+  <td>{{ crack.cracked }}</td>
+  <td>{{ crack.rate }}</td>
+  <td><span class="{{ crack.verdict_css }}">{{ crack.verdict }}</span></td>
+  <td>{{ crack.weak_patterns }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+</section>
+
+<section>
+<h2>Niveau 4 — Matrice ATT&amp;CK &amp; MTTD</h2>
+{% if coverage.is_empty() %}
+<p class="empty">Aucune technique ATT&amp;CK émise.</p>
+{% else %}
+<table>
+<thead><tr><th>Technique</th><th>Nom</th><th>Tactique</th><th>Profil</th><th>Détection</th><th>MTTD</th><th>Détecté par</th></tr></thead>
+<tbody>
+{% for cell in coverage %}
+<tr>
+  <td>{{ cell.technique_id }}</td>
+  <td>{{ cell.technique_name }}</td>
+  <td>{{ cell.tactic }}</td>
+  <td>{{ cell.profile }}</td>
+  <td><span class="{{ cell.detection_css }}">{{ cell.detection }}</span></td>
+  <td>{{ cell.mttd }}</td>
+  <td>{{ cell.detected_by }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+<h3>Comparaison des taux de détection par profil</h3>
+{% if profiles.is_empty() %}
+<p class="empty">Aucun profil comparable.</p>
+{% else %}
+<table>
+<thead><tr><th>Profil</th><th>Techniques</th><th>Détectées</th><th>Partielles</th><th>Non détectées</th><th>Taux</th><th>MTTD moyen</th></tr></thead>
+<tbody>
+{% for profile in profiles %}
+<tr>
+  <td>{{ profile.profile }}</td>
+  <td>{{ profile.total }}</td>
+  <td>{{ profile.detected }}</td>
+  <td>{{ profile.partial }}</td>
+  <td>{{ profile.not_detected }}</td>
+  <td>{{ profile.detection_rate }}</td>
+  <td>{{ profile.mean_mttd }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+{% endif %}
+</section>
+
+<section>
+<h2>Timeline horodatée</h2>
+<p class="meta">Corrélation action opérateur ↔ évènement de détection (SIEM / blue team), §11.3.</p>
+{% if timeline.is_empty() %}
+<p class="empty">Aucun évènement horodaté.</p>
+{% else %}
+<table>
+<thead><tr><th>Horodatage</th><th>Phase</th><th>Origine</th><th>Étiquette</th><th>Détail</th><th>Corrélation</th></tr></thead>
+<tbody>
+{% for event in timeline %}
+<tr>
+  <td>{{ event.at }}</td>
+  <td>{{ event.phase }}</td>
+  <td><span class="origin-{{ event.origin }}">{{ event.origin }}</span></td>
+  <td>{{ event.label }}</td>
+  <td>{{ event.detail }}</td>
+  <td>{{ event.correlation }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+</section>
+
+<section>
+<h2>État de l'engagement</h2>
+<p class="meta">Consommation : {{ usage_actions }} action(s), {{ usage_bytes }} octet(s).</p>
+{% if operation_total == 0 %}
+<p class="empty">Aucune opération consignée.</p>
+{% else %}
+<table>
+<thead><tr><th>Clé</th><th>Type</th><th>Cible</th><th>Statut</th><th>Début</th><th>Fin</th></tr></thead>
+<tbody>
+{% for op in operations %}
+<tr>
+  <td>{{ op.key }}</td>
+  <td>{{ op.kind }}</td>
+  <td>{{ op.target }}</td>
+  <td><span class="{{ op.status_css }}">{{ op.status }}</span></td>
+  <td>{{ op.started_at }}</td>
+  <td>{{ op.finished_at }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+</section>
+
+<footer>
+Rapport consolidé Nickmare (niveaux 1 à 4 : recon, exploitation, craquage, émulation).
+Livrable défensif de restitution d'audit — secrets masqués, aucune capacité offensive.
+Nickmare — usage strictement limité aux engagements autorisés.
+</footer>
+</body>
+</html>

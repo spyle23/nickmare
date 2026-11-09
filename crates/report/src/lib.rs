@@ -17,18 +17,31 @@
 //! mock, sans dépendance SQLite. Un même engagement produit toujours le même
 //! rapport (reproductibilité).
 //!
-//! # Périmètre strict : Niveau 1
+//! # Deux restitutions : socle N1 et rapport consolidé N1→N4
 //!
-//! Ce socle ne porte **que** du N1 (recon : hôtes, services, constats, carte). Les
-//! sections N2–N4 (exploitation, craquage, émulation) s'ajouteront en Phase 9,
-//! **derrière le jalon de revue #17** — elles n'existent pas ici. Les capacités
-//! offensives correspondantes ne sont pas implémentées.
+//! Le socle [`ReportModel`] ne porte **que** du N1 (recon : hôtes, services,
+//! constats, carte). La Phase 9 (issue #23) l'étend par un
+//! [`ConsolidatedReport`](consolidated::ConsolidatedReport) couvrant tous les
+//! niveaux : exploits confirmés (N2), taux de craquage et verdict de politique
+//! (N3), matrice de couverture ATT&CK + MTTD (N4), carte annotée, timeline
+//! horodatée et comparaison des taux de détection entre profils. C'est un
+//! **livrable défensif** de restitution : aucune capacité offensive n'est
+//! implémentée ici, et les secrets craqués restent masqués (`CrackResult` ne
+//! porte que des statistiques, §7).
 
+pub mod consolidated;
+mod consolidated_html;
+mod display;
 mod error;
 mod html;
 pub mod model;
 pub mod store;
 
+pub use consolidated::{
+    load_consolidated_from_store, ConsolidatedInputs, ConsolidatedReport, ExecutiveSummary,
+    TimelineEvent,
+};
+pub use consolidated::{CRACKING_KEY, EXECUTIONS_KEY, EXPLOITS_KEY};
 pub use error::ReportError;
 pub use model::{OperationView, ReportMeta, ReportModel, SeverityCount, Summary, UsageView};
 pub use store::{load_from_store, FINDINGS_KEY, NETWORK_MAP_KEY};

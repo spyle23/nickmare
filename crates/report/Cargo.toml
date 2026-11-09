@@ -17,8 +17,20 @@ workspace = true
 # d'un engagement via le même trait que `nickmare-store` (SqliteStore). On ne
 # dépend PAS de `nickmare-store` lui-même (ni de rusqlite/tokio) : le rapport est
 # pur et testable par mock (InMemoryStore de `core`), le binaire `nickmare`
-# branchant le store réel.
+# branchant le store réel. Les types N2/N3/N4 consommés par le rapport consolidé
+# (`ExploitAttempt`, `CrackResult`, `AttackExecution`) sont eux aussi des types
+# **purs** de `core` : le rapport n'exécute aucune technique, il restitue.
 nickmare-core = { path = "../core" }
+
+# Matrice de couverture ATT&CK + MTTD (issue #23, N4) : on **réutilise**
+# `CoverageMatrix`/`DetectionStats`/`compare_profiles` et le `TechniqueCatalog`
+# embarqué de `nickmare-emulation` plutôt que de réimplémenter la corrélation
+# technique → verdict → MTTD. `emulation` ne dépend que de `core` (comme `report`)
+# : aucun cycle, et aucune nouvelle dépendance tierce pour le workspace (serde,
+# serde_json, chrono, async-trait sont déjà vendus et audités par deny/audit).
+# C'est de la **restitution** : le rapport consomme des `AttackExecution` déjà
+# tracées, il ne pilote aucun moteur d'émulation.
+nickmare-emulation = { path = "../emulation" }
 
 # Rendu HTML par templates **compilés et typés** (US-H1). Version figée (=) comme
 # le reste de l'arbre : la toolchain est épinglée à 1.83 (rust-toolchain.toml) et
@@ -38,3 +50,12 @@ askama = { version = "=0.12.1", default-features = false }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"
 chrono = { version = "0.4.38", features = ["serde"] }
+
+[dev-dependencies]
+# Garde-fou de masquage (issue #23, N3) : le test de non-fuite fait transiter un
+# clair craqué par le **vrai** chemin de `crates/crack` — `MaskedSecret` +
+# `CrackReport::to_crack_result` — pour prouver que le `CrackResult` restitué par
+# le rapport (HTML ET JSON) n'expose aucun secret en clair. En test seulement :
+# le rapport lui-même ne dépend PAS de `nickmare-crack`, il ne consomme que le
+# `CrackResult` (statistiques, déjà masqué par construction) de `core`.
+nickmare-crack = { path = "../crack" }

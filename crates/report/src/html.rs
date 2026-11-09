@@ -9,8 +9,11 @@
 //! une bannière, un nom d'hôte ou une description de constat (garde-fou §12).
 
 use askama::Template;
-use nickmare_core::model::{HostRole, OsGuess, PortState, Proto, Service, Severity};
 
+use crate::display::{
+    dash, format_service, os_label, port_state_css, port_state_label, proto_label, role_label,
+    severity_css, severity_display, severity_label, status_css,
+};
 use crate::error::ReportError;
 use crate::model::ReportModel;
 
@@ -216,123 +219,15 @@ fn page_from(model: &ReportModel) -> ReportPage {
     }
 }
 
-/// Placeholder « valeur absente ».
-fn dash() -> String {
-    "—".to_string()
-}
-
-/// Libellé compact d'un service : `nom (produit version)`.
-fn format_service(service: &Service) -> String {
-    let mut line = service.name.clone();
-    match (service.product.as_deref(), service.version.as_deref()) {
-        (Some(product), Some(version)) => line.push_str(&format!(" ({product} {version})")),
-        (Some(product), None) => line.push_str(&format!(" ({product})")),
-        (None, Some(version)) => line.push_str(&format!(" (v{version})")),
-        (None, None) => {}
-    }
-    line
-}
-
-/// Libellé français du rôle présumé.
-fn role_label(role: HostRole) -> &'static str {
-    match role {
-        HostRole::Gateway => "passerelle",
-        HostRole::Server => "serveur",
-        HostRole::Workstation => "poste",
-        HostRole::Unknown => "rôle inconnu",
-    }
-}
-
-/// Libellé lisible de l'OS présumé.
-fn os_label(os: Option<&OsGuess>) -> String {
-    match os {
-        None => "OS inconnu".to_string(),
-        Some(OsGuess::Linux) => "Linux".to_string(),
-        Some(OsGuess::Windows) => "Windows".to_string(),
-        Some(OsGuess::MacOs) => "macOS".to_string(),
-        Some(OsGuess::Bsd) => "BSD".to_string(),
-        Some(OsGuess::Android) => "Android".to_string(),
-        Some(OsGuess::Ios) => "iOS".to_string(),
-        Some(OsGuess::NetworkDevice) => "équipement réseau".to_string(),
-        Some(OsGuess::Other(label)) => label.clone(),
-    }
-}
-
-/// Libellé français d'un état de port.
-fn port_state_label(state: PortState) -> &'static str {
-    match state {
-        PortState::Open => "ouvert",
-        PortState::Closed => "fermé",
-        PortState::Filtered => "filtré",
-    }
-}
-
-/// Classe CSS d'un état de port.
-fn port_state_css(state: PortState) -> &'static str {
-    match state {
-        PortState::Open => "port-open",
-        PortState::Closed => "port-closed",
-        PortState::Filtered => "port-filtered",
-    }
-}
-
-/// Libellé d'un protocole de port.
-fn proto_label(proto: Proto) -> &'static str {
-    match proto {
-        Proto::Tcp => "tcp",
-        Proto::Udp => "udp",
-    }
-}
-
-/// Libellé français d'une gravité de constat.
-fn severity_label(severity: Severity) -> &'static str {
-    match severity {
-        Severity::Info => "info",
-        Severity::Low => "faible",
-        Severity::Medium => "moyen",
-        Severity::High => "élevé",
-        Severity::Critical => "critique",
-    }
-}
-
-/// Classe CSS d'une gravité de constat.
-fn severity_css(severity: Severity) -> &'static str {
-    match severity {
-        Severity::Info => "sev-info",
-        Severity::Low => "sev-low",
-        Severity::Medium => "sev-medium",
-        Severity::High => "sev-high",
-        Severity::Critical => "sev-critical",
-    }
-}
-
-/// Libellé + classe CSS d'une gravité à partir de sa clé stable (résumé).
-fn severity_display(key: &str) -> (&'static str, &'static str) {
-    match key {
-        "critical" => ("critique", "sev-critical"),
-        "high" => ("élevé", "sev-high"),
-        "medium" => ("moyen", "sev-medium"),
-        "low" => ("faible", "sev-low"),
-        _ => ("info", "sev-info"),
-    }
-}
-
-/// Classe CSS d'un statut d'opération persisté.
-fn status_css(status: &str) -> &'static str {
-    match status {
-        "done" => "op-done",
-        "incomplete" => "op-incomplete",
-        _ => "op-pending",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::net::IpAddr;
 
     use chrono::{DateTime, Utc};
-    use nickmare_core::model::{Finding, Host, NetworkMap, Port, Service};
+    use nickmare_core::model::{
+        Finding, Host, HostRole, NetworkMap, OsGuess, Port, PortState, Proto, Service, Severity,
+    };
 
     use crate::model::{ReportMeta, ReportModel, UsageView};
 
